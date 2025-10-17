@@ -1,29 +1,26 @@
-
 <!DOCTYPE html>
 <html>
   <head>
     <title>イベント地図</title>
     <meta charset="utf-8">
     <style>
-      #map {{
+      #map {
         height: 500px;
         width: 100%;
-      }}
+      }
     </style>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg"></script>
-    <script>
-      function initMap() {{
-        const location = {{ lat: 35.6895, lng: 139.6917 }}; // 東京駅の座標
-        const map = new google.maps.Map(document.getElementById("map"), {{
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg"></script      function initMap() {
+        const location = { lat: 35.6895, lng: 139.6917 }; // 東京駅の座標
+        const map = new google.maps.Map(document.getElementById("map"), {
           zoom: 15,
           center: location
-        }});
-        const marker = new google.maps.Marker({{
+        });
+        const marker = new google.maps.Marker({
           position: location,
           map: map,
           title: "イベント会場"
-        }});
-      }}
+        });
+      }
       window.onload = initMap;
     </script>
   </head>

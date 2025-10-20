@@ -54,7 +54,12 @@
             
             // 5. インフォウィンドウの内容を定義
             const infoWindow = new google.maps.InfoWindow({
-                content: "<h1>潮見イベント情報</h1><p>地域イベントの開催予定地です。</p>"
+                content:
+                    <div style="font-size: 1.2em;">
+                      <h3>潮見高架下</h3>
+                      <p>地域イベントの開催予定地です。</p>
+                    </div>
+                 `
             });
 
             // 6. マーカーをクリックしたときにインフォウィンドウを表示

@@ -1,8 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ShiomiXスタンプラリー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 0; padding: 0; color: #333; }
-  h1 { font-size: 2em; color: #00aaff; text-align: center; margin: 10px 0; }
-  .map-container { width: 100%; height: 45vh; }
-  iframe { width: 100%; height: 100%; border: 0; border-radius: 8px; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 0;
+    color: #333;
+  }
+  h1 {
+    font-size: 2em;
+    color: #00aaff;
+    text-align: center;
+    margin: 10px 0;
+  }
+  .map-container {
+    width: 100%;
+    height: 45vh; /* 画面の約半分 */
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 8px;
+  }
   .stamp-container {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -22,6 +47,7 @@
     justify-content: center;
     font-size: 0.7em;
     color: #999;
+    white-space: nowrap;
   }
   .stamp-mark {
     position: absolute;
@@ -33,20 +59,184 @@
     display:flex; align-items:center; justify-content:center;
     font-size: 0.8em; font-weight:bold;
   }
-  .btn-container { text-align: center; padding: 8px; }
-  #qr-btn { padding: 14px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; width: 90%; margin-bottom: 8px; }
-  #reset-btn { padding: 6px 10px; background-color:#d9534f; color:white; border:none; border-radius:6px; font-size:0.8em; cursor:pointer; width:40%; }
+  .btn-container {
+    text-align: center;
+    padding: 8px;
+  }
+  #qr-btn {
+    padding: 14px;
+    background-color: #2e7d32;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1em;
+    cursor: pointer;
+    width: 90%;
+    margin-bottom: 8px;
+  }
+  #qr-btn:hover {
+    background-color: #1b5e20;
+  }
+  #reset-btn {
+    padding: 6px 10px;
+    background-color:#d9534f;
+    color:white;
+    border:none;
+    border-radius:6px;
+    font-size:0.8em;
+    cursor:pointer;
+    width:40%;
+  }
+  #reset-btn:hover {
+    background-color:#c9302c;
+  }
+  #complete-screen {
+    display: none;
+    text-align: center;
+    padding: 10px;
+    background: #e8f5e9;
+    border-radius: 8px;
+    font-size: 0.9em;
+    margin: 8px;
+  }
+  #qr-modal {
+    display:none;
+    position:fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:rgba(0,0,0,0.5);
+    z-index:999;
+  }
+  .modal-content {
+    width:300px;
+    height:360px;
+    background:#fff;
+    margin:80px auto;
+    padding:10px;
+    border-radius:8px;
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+  }
+  #qr-reader {
+    width:180px;
+    margin:auto;
+  }
 </style>
+</head>
+<body>
 
 <h1>ShiomiXスタンプラリー</h1>
 
+<!-- Googleマップ -->
 <div class="map-container">
   <iframe src="https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F" loading="lazy"></iframe>
 </div>
 
+<!-- スタンプ -->
 <div class="stamp-container" id="stampContainer"></div>
 
+<!-- ボタン -->
 <div class="btn-container">
   <button id="qr-btn" onclick="openModal()">QR読み込み開始</button><br>
   <button id="reset-btn">全削除</button>
 </div>
+
+<!-- モーダル -->
+<div id="qr-modal">
+  <div class="modal-content">
+    <h3>QRコード読み取り</h3>
+    <div id="qr-reader"></div>
+    <button onclick="closeModal()" style="background-color:#d9534f;">閉じる</button>
+  </div>
+</div>
+
+<!-- 完了画面 -->
+<div id="complete-screen">
+  <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
+  <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
+  <a href="https://forms.office.com/r/sn3wvtS6Yy" target="_blank">応募フォームへ</a>
+  <p>※送信後、この画面を受付で提示してください。</p>
+</div>
+
+<!-- QRコードライブラリ -->
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<script>
+  const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
+  const container = document.getElementById('stampContainer');
+
+  // スタンプを3×3で表示
+  for (let i = 1; i <= 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'stamp-cell';
+    const label = document.createElement('span');
+    label.textContent = 'スタンプ' + i;
+    cell.appendChild(label);
+    if (savedStamps.includes('stamp' + i)) {
+      const stamp = document.createElement('div');
+      stamp.className = 'stamp-mark';
+      stamp.textContent = 'スタンプ' + i;
+      cell.appendChild(stamp);
+    }
+    container.appendChild(cell);
+  }
+
+  let qrReader;
+
+  async function openModal() {
+    document.getElementById('qr-modal').style.display = 'block';
+    if (!qrReader) qrReader = new Html5Qrcode("qr-reader");
+    try {
+      await qrReader.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 160 },
+        qrCodeMessage => {
+          if (/^stamp[1-9]$/.test(qrCodeMessage)) {
+            const index = parseInt(qrCodeMessage.replace('stamp',''));
+            const cells = document.querySelectorAll('.stamp-cell');
+            cells.forEach(cell => {
+              if (cell.textContent.includes('スタンプ' + index) && !cell.querySelector('.stamp-mark')) {
+                const stamp = document.createElement('div');
+                stamp.className = 'stamp-mark';
+                stamp.textContent = 'スタンプ' + index;
+                cell.appendChild(stamp);
+                savedStamps.push('stamp' + index);
+                localStorage.setItem('stamps', JSON.stringify(savedStamps));
+              }
+            });
+            checkCompletion();
+            closeModal();
+          }
+        },
+        errorMessage => console.warn(`読み取りエラー: ${errorMessage}`)
+      );
+    } catch (err) {
+      alert('カメラ起動エラー: ' + err);
+    }
+  }
+
+  async function closeModal() {
+    document.getElementById('qr-modal').style.display = 'none';
+    if (qrReader) await qrReader.stop();
+  }
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    if (confirm('本当に全てのスタンプを削除しますか？')) {
+      localStorage.removeItem('stamps');
+      alert('スタンプを全削除しました');
+      location.reload();
+    }
+  });
+
+  function checkCompletion() {
+    if (savedStamps.length === 9) {
+      document.getElementById('complete-screen').style.display = 'block';
+      if (qrReader) qrReader.stop();
+    }
+  }
+  checkCompletion();
+</script>
+</body>
+</html>

@@ -12,7 +12,6 @@
   .stamp-cell { width: 100%; padding-top: 100%; position: relative; background: #fff; border: 2px solid #ccc; }
   .stamp-cell span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
   .stamp-mark { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: 70%; background-repeat: no-repeat; background-position: center; opacity: 0.9; }
-  #map { width: 100%; height: 250px; margin-top: 20px; border-radius: 8px; }
   .btn-container { text-align: center; margin-bottom: 15px; }
   button { padding: 12px 20px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; width: 45%; }
   button:hover { background-color: #1b5e20; }
@@ -24,6 +23,7 @@
   #qr-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; }
   .modal-content { width:360px; height:420px; background:#fff; margin:80px auto; padding:10px; border-radius:8px; text-align:center; display:flex; flex-direction:column; justify-content:space-between; }
   #qr-reader { width:220px; margin:auto; }
+  iframe { width:100%; height:480px; border:0; border-radius:8px; }
 </style>
 </head>
 <body>
@@ -63,7 +63,10 @@
   <p>※送信後、この画面を受付で提示してください。</p>
 </div>
 
-<div id="map"></div>
+<!-- 新しいGoogleマップ埋め込み -->
+<div style="margin-top:20px;">
+  <iframe src="https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F" loading="lazy"></iframe>
+</div>
 
 <!-- LIFF SDK -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -121,12 +124,6 @@
     'https://cdn-icons-png.flaticon.com/512/616/616449.png',
     'https://cdn-icons-png.flaticon.com/512/616/616451.png'
   ];
-
-  function initMap() {
-    const mapCenter = { lat: 35.659466436461635, lng: 139.8171347921082 };
-    const map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center: mapCenter });
-    new google.maps.Marker({ position: mapCenter, map: map, title: "潮見高架下" });
-  }
 
   const container = document.getElementById('stampContainer');
   const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
@@ -200,8 +197,5 @@
   }
   checkCompletion();
 </script>
-
-<!-- Google Maps API -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
 </body>
 </html>

@@ -34,15 +34,15 @@
 <div id="line-warning">
   LINEアプリ内ではカメラが起動できません。<br>
   下のボタンから外部ブラウザ（Safari/Chrome）で開いてください。<br>
-  https://あなたのページURL外部ブラウザで開く</a>
+  <a href="https://あなたのページURL" target="_blank">外部ブラウザで開く</a>
 </div>
 
 <h2>スタンプラリー</h2>
 <div class="stamp-container" id="stampContainer"></div>
 
 <div class="btn-container">
-  <button onclick="openModal()">QR読み込み開始</button>
-  <button id="reset-btn" style="background-color:#d9534f;">全削除</button>
+  <button onclick="openModal()" aria-label="QRコード読み込み開始">QR読み込み開始</button>
+  <button id="reset-btn" style="background-color:#d9534f;" aria-label="スタンプ全削除">全削除</button>
 </div>
 
 <!-- モーダル -->
@@ -50,21 +50,21 @@
   <div class="modal-content">
     <h3>QRコード読み取り</h3>
     <div id="qr-reader"></div>
-    <button onclick="closeModal()" style="background-color:#d9534f;">閉じる</button>
+    <button onclick="closeModal()" style="background-color:#d9534f;" aria-label="閉じる">閉じる</button>
   </div>
 </div>
 
 <div id="complete-screen">
   <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
-  https://forms.office.com/r/sn3wvtS6Yy応募フォームへ</a>
+  <a href="https://forms.office.com/r/sn3wvtS6Yy" target="_blank" class="form-btn">応募フォームへ</a>
   <p>※送信後、この画面を受付で提示してください。</p>
 </div>
 
 <div id="map"></div>
 
 <!-- QRコードライブラリ -->
-https://unpkg.com/html5-qrcode</script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
   // LINEブラウザ検出
@@ -109,39 +109,43 @@ https://unpkg.com/html5-qrcode</script>
 
   let qrReader;
 
-  function openModal() {
+  async function openModal() {
     document.getElementById('qr-modal').style.display = 'block';
     if (!qrReader) {
       qrReader = new Html5Qrcode("qr-reader");
     }
-    qrReader.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      qrCodeMessage => {
-        if (/^B[1-9]$/.test(qrCodeMessage)) {
-          const index = parseInt(qrCodeMessage.replace('B','')) - 1;
-          const cells = document.querySelectorAll('.stamp-cell');
-          cells.forEach(cell => {
-            if (cell.textContent.includes(qrCodeMessage) && !cell.querySelector('.stamp-mark')) {
-              const stamp = document.createElement('div');
-              stamp.className = 'stamp-mark';
-              stamp.style.backgroundImage = `url(${stampImages[index]})`;
-              cell.appendChild(stamp);
-              savedStamps.push(qrCodeMessage);
-              localStorage.setItem('stamps', JSON.stringify(savedStamps));
-            }
-          });
-          checkCompletion();
-          closeModal(); // 読み取り完了後に自動で閉じる
-        }
-      },
-      errorMessage => console.warn(`読み取りエラー: ${errorMessage}`)
-    ).catch(err => alert('カメラ起動エラー: ' + err));
+    try {
+      await qrReader.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        qrCodeMessage => {
+          if (/^B[1-9]$/.test(qrCodeMessage)) {
+            const index = parseInt(qrCodeMessage.replace('B','')) - 1;
+            const cells = document.querySelectorAll('.stamp-cell');
+            cells.forEach(cell => {
+              if (cell.textContent.includes(qrCodeMessage) && !cell.querySelector('.stamp-mark')) {
+                const stamp = document.createElement('div');
+                stamp.className = 'stamp-mark';
+                stamp.style.backgroundImage = `url(${stampImages[index]})`;
+                cell.appendChild(stamp);
+                savedStamps.push(qrCodeMessage);
+                localStorage.setItem('stamps', JSON.stringify(savedStamps));
+              }
+            });
+            checkCompletion();
+            closeModal(); // 読み取り完了後に自動で閉じる
+          }
+        },
+        errorMessage => console.warn(`読み取りエラー: ${errorMessage}`)
+      );
+    } catch (err) {
+      alert('カメラ起動エラー: ' + err);
+    }
   }
 
-  function closeModal() {
+  async function closeModal() {
     document.getElementById('qr-modal').style.display = 'none';
-    if (qrReader) qrReader.stop();
+    if (qrReader) await qrReader.stop();
   }
 
   document.getElementById('reset-btn').addEventListener('click', () => {
@@ -160,6 +164,5 @@ https://unpkg.com/html5-qrcode</script>
 </script>
 
 <!-- Google Maps API -->
-https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap" async defer></script>
 </body>
-</html>

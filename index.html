@@ -13,7 +13,6 @@
   }
   h1 { font-size: 1.8em; color: #2e7d32; margin-bottom: 0.5em; text-align: center; }
   h2 { font-size: 1.3em; color: #34495e; margin-bottom: 1em; text-align: center; }
-  /* スタンプラリーを上に */
   .stamp-container {
     display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 8px; justify-content: center; margin-bottom: 15px;
@@ -52,9 +51,10 @@
     display: none; text-align: center; padding: 15px; background: #e8f5e9;
     border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   }
-  input, textarea {
-    width: 90%; padding: 8px; font-size: 1em; border: 1px solid #ccc; border-radius: 4px;
-    margin-bottom: 10px;
+  #complete-screen img {
+    margin-top: 10px;
+    width: 150px;
+    height: 150px;
   }
 </style>
 </head>
@@ -77,42 +77,39 @@
 <!-- コンプリート画面 -->
 <div id="complete-screen">
   <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
-  <p>以下のフォームに入力して応募してください。</p>
-  <form id="entry-form">
-    <input type="text" id="name" placeholder="お名前" required>
-    <input type="email" id="email" placeholder="メールアドレス" required>
-    <textarea id="comment" placeholder="コメント（任意）"></textarea>
-    <button type="submit">応募する</button>
-  </form>
+  <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
+  https://forms.office.com/r/XXXXXXXX
+    <button>応募フォームへ</button>
+  </a>
+  <p>または、下のQRコードを読み取ってフォームにアクセスできます。</p>
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://forms.office.com/r/XXXXXXXX" alt="応募フォームQRコード">
+  <p>※送信後、この画面を受付で提示してください。</p>
 </div>
 
-<!-- 地図を下に -->
+<!-- 地図 -->
 <div id="map"></div>
 
 <!-- ライブラリ -->
-<script src="https://unpkg.com/html5-qrcode"></script>
+https://unpkg.com/html5-qrcode</script>
 <script>
-  // イラストURL（単色・抽象的・子供向け）
   const stampImages = [
-    'https://cdn-icons-png.flaticon.com/512/616/616408.png', // 動物1
-    'https://cdn-icons-png.flaticon.com/512/616/616430.png', // 動物2
-    'https://cdn-icons-png.flaticon.com/512/616/616426.png', // 動物3
-    'https://cdn-icons-png.flaticon.com/512/616/616439.png', // 動物4
-    'https://cdn-icons-png.flaticon.com/512/616/616443.png', // 動物5
-    'https://cdn-icons-png.flaticon.com/512/616/616445.png', // 電車
-    'https://cdn-icons-png.flaticon.com/512/616/616447.png', // バス
-    'https://cdn-icons-png.flaticon.com/512/616/616449.png', // 飛行機
-    'https://cdn-icons-png.flaticon.com/512/616/616451.png'  // 船
+    'https://cdn-icons-png.flaticon.com/512/616/616408.png',
+    'https://cdn-icons-png.flaticon.com/512/616/616430.png',
+    'https://cdn-icons-png.flaticon.com/512/616/616426.png',
+    'https://cdn-icons-png.flaticon.com/512/616/616439.png',
+    'https://cdn-icons-png.flaticon.com/512/616/616443.png',
+    'https://cdn-icons-png.flaticon.com/512/616/616445.png',
+    'https://cdn-icons-png.flaticon.com/512/616/616447.png',
+    'https://cdn-icons-png.flaticon.com/512/616/616449.png',
+    'https://cdn-icons-png.flaticon.com/512/616/616451.png'
   ];
 
-  // Google Map初期化
   function initMap() {
     const mapCenter = { lat: 35.659466436461635, lng: 139.8171347921082 };
     const map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center: mapCenter });
     new google.maps.Marker({ position: mapCenter, map: map, title: "潮見高架下" });
   }
 
-  // スタンプラリー生成
   const container = document.getElementById('stampContainer');
   const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
   for (let i = 1; i <= 9; i++) {
@@ -132,7 +129,6 @@
 
   let qrReader;
 
-  // 開始ボタン
   document.getElementById('start-scan-btn').addEventListener('click', () => {
     document.getElementById('qr-reader').style.display = 'block';
     document.getElementById('stop-scan-btn').disabled = false;
@@ -163,7 +159,6 @@
     ).catch(err => alert('カメラ起動エラー: ' + err));
   });
 
-  // 停止ボタン
   document.getElementById('stop-scan-btn').addEventListener('click', () => {
     if (qrReader) {
       qrReader.stop().then(() => {
@@ -173,7 +168,6 @@
     }
   });
 
-  // コンプリート判定
   function checkCompletion() {
     if (savedStamps.length === 9) {
       document.getElementById('complete-screen').style.display = 'block';
@@ -182,16 +176,7 @@
     }
   }
   checkCompletion();
-
-  // 応募フォーム送信
-  document.getElementById('entry-form').addEventListener('submit', e => {
-    e.preventDefault();
-    alert('応募が完了しました！\nお名前: ' + document.getElementById('name').value);
-    localStorage.removeItem('stamps');
-    location.reload();
-  });
 </script>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
+https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap</script>
 </body>
-</html>

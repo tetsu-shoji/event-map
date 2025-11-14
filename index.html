@@ -13,10 +13,7 @@
   }
   h1 { font-size: 1.8em; color: #2e7d32; margin-bottom: 0.5em; text-align: center; }
   h2 { font-size: 1.3em; color: #34495e; margin-bottom: 1em; text-align: center; }
-  #map {
-    width: 100%; height: 250px; margin-bottom: 15px;
-    border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  }
+  /* スタンプラリーを上に */
   .stamp-container {
     display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 8px; justify-content: center; margin-bottom: 15px;
@@ -31,8 +28,12 @@
   }
   .stamp-mark {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: url('https://cdn-icons-png.flaticon.com/512/190/190411.png') center/60% no-repeat;
-    opacity: 0.8;
+    background-size: 70%; background-repeat: no-repeat; background-position: center;
+    opacity: 0.9;
+  }
+  #map {
+    width: 100%; height: 250px; margin-top: 20px;
+    border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   }
   #qr-reader {
     width: 90%; max-width: 350px; margin: 15px auto; display: none;
@@ -60,7 +61,6 @@
 <body>
 
 <h1>㈱ジェイアール東日本都市開発 スタンプラリー</h1>
-<div id="map"></div>
 
 <h2>スタンプラリー</h2>
 <div class="stamp-container" id="stampContainer"></div>
@@ -86,9 +86,25 @@
   </form>
 </div>
 
+<!-- 地図を下に -->
+<div id="map"></div>
+
 <!-- ライブラリ -->
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
+  // イラストURL（単色・抽象的・子供向け）
+  const stampImages = [
+    'https://cdn-icons-png.flaticon.com/512/616/616408.png', // 動物1
+    'https://cdn-icons-png.flaticon.com/512/616/616430.png', // 動物2
+    'https://cdn-icons-png.flaticon.com/512/616/616426.png', // 動物3
+    'https://cdn-icons-png.flaticon.com/512/616/616439.png', // 動物4
+    'https://cdn-icons-png.flaticon.com/512/616/616443.png', // 動物5
+    'https://cdn-icons-png.flaticon.com/512/616/616445.png', // 電車
+    'https://cdn-icons-png.flaticon.com/512/616/616447.png', // バス
+    'https://cdn-icons-png.flaticon.com/512/616/616449.png', // 飛行機
+    'https://cdn-icons-png.flaticon.com/512/616/616451.png'  // 船
+  ];
+
   // Google Map初期化
   function initMap() {
     const mapCenter = { lat: 35.659466436461635, lng: 139.8171347921082 };
@@ -108,6 +124,7 @@
     if (savedStamps.includes('B' + i)) {
       const stamp = document.createElement('div');
       stamp.className = 'stamp-mark';
+      stamp.style.backgroundImage = `url(${stampImages[i-1]})`;
       cell.appendChild(stamp);
     }
     container.appendChild(cell);
@@ -127,11 +144,13 @@
       { fps: 10, qrbox: 250 },
       qrCodeMessage => {
         if (/^B[1-9]$/.test(qrCodeMessage)) {
+          const index = parseInt(qrCodeMessage.replace('B','')) - 1;
           const cells = document.querySelectorAll('.stamp-cell');
           cells.forEach(cell => {
             if (cell.textContent.includes(qrCodeMessage) && !cell.querySelector('.stamp-mark')) {
               const stamp = document.createElement('div');
               stamp.className = 'stamp-mark';
+              stamp.style.backgroundImage = `url(${stampImages[index]})`;
               cell.appendChild(stamp);
               savedStamps.push(qrCodeMessage);
               localStorage.setItem('stamps', JSON.stringify(savedStamps));

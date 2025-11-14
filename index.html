@@ -31,7 +31,7 @@
 <div class="btn-container">
   <button id="start-scan-btn">QR読み込み開始</button>
   <button id="stop-scan-btn" disabled>停止</button>
-  <button id="reset-btn" style="background-color:#d32f2f;">全削除</button>
+  <button id="reset-btn">全削除</button>
 </div>
 
 <div id="qr-reader"></div>
@@ -48,7 +48,7 @@
 <div id="map"></div>
 
 <!-- QRコードライブラリ -->
-https://unpkg.com/html5-qrcode</script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
   const stampImages = [
@@ -127,10 +127,8 @@ https://unpkg.com/html5-qrcode</script>
     }
   });
 
-  // 全削除ボタン
   document.getElementById('reset-btn').addEventListener('click', () => {
     localStorage.removeItem('stamps');
-    alert('スタンプを全て削除しました');
     location.reload();
   });
 
@@ -139,17 +137,12 @@ https://unpkg.com/html5-qrcode</script>
       document.getElementById('complete-screen').style.display = 'block';
       if (qrReader) qrReader.stop();
       document.getElementById('stop-scan-btn').disabled = true;
-
-      // 応募フォームボタンに削除処理追加
-      document.querySelector('.form-btn')?.addEventListener('click', () => {
-        localStorage.removeItem('stamps');
-      });
     }
   }
   checkCompletion();
 </script>
 
 <!-- Google Maps API -->
-https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap" async defer></script>
 </body>
 </html>

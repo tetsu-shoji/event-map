@@ -31,7 +31,7 @@
 <div class="btn-container">
   <button id="start-scan-btn">QR読み込み開始</button>
   <button id="stop-scan-btn" disabled>停止</button>
-  <button id="reset-btn">全削除</button>
+  <button id="reset-btn" style="background-color:#d9534f;">全削除</button>
 </div>
 
 <div id="qr-reader"></div>
@@ -39,9 +39,7 @@
 <div id="complete-screen">
   <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
-  https://forms.office.com/r/sn3wvtS6Yy
-    応募フォームへ
-  </a>
+  <a href="https://forms.office.com/r/sn3wvtS6Yy" target="_blank" class="form-btn">応募フォームへ</a>
   <p>※送信後、この画面を受付で提示してください。</p>
 </div>
 
@@ -129,6 +127,7 @@
 
   document.getElementById('reset-btn').addEventListener('click', () => {
     localStorage.removeItem('stamps');
+    alert('スタンプを全削除しました');
     location.reload();
   });
 
@@ -143,6 +142,6 @@
 </script>
 
 <!-- Google Maps API -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
 </body>
 </html>

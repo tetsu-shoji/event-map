@@ -1,145 +1,151 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>ジェイアール東日本都市開発</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f4f6f8;
-      margin: 40px;
-      color: #333;
-    }
-
-    h1 {
-      font-size: 2em;
-      color: #2e7d32;
-      margin-bottom: 0.2em;
-    }
-
-    h2 {
-      font-size: 1.4em;
-      color: #34495e;
-      margin-bottom: 1em;
-    }
-
-    table {
-      width: 400px;
-      border-collapse: collapse;
-      background: #ffffff;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    th, td {
-      padding: 12px 16px;
-      text-align: left;
-    }
-
-    th {
-      background-color: #2e7d32;
-      color: white;
-      font-weight: bold;
-    }
-
-    tr:nth-child(even) td {
-      background-color: #e8f5e9;
-    }
-
-    tr:hover td {
-      background-color: #e8e6c9;
-      transition: background-color 0.3s ease;
-    }
-
-    /* ボタンのスタイル */
-    .nav-button {
-      display: inline-block;
-      margin: 20px 0;
-      padding: 12px 24px;
-      background-color: #2e7d32;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 1em;
-      cursor: pointer;
-      text-decoration: none;
-    }
-
-    .nav-button:hover {
-      background-color: #1b5e20;
-    }
-
-    /* 地図のスタイル */
-    #map {
-      width: 100%;
-      height: 500px;
-      margin-top: 30px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-  </style>
+<meta charset="UTF-8">
+<title>ジェイアール東日本都市開発 スタンプラリー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f8;
+    margin: 20px;
+    color: #333;
+  }
+  h1 { font-size: 2em; color: #2e7d32; margin-bottom: 0.5em; }
+  h2 { font-size: 1.4em; color: #34495e; margin-bottom: 1em; }
+  #map {
+    width: 100%; height: 300px; margin-bottom: 20px;
+    border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .stamp-container {
+    display: grid; grid-template-columns: repeat(3, 100px);
+    gap: 10px; justify-content: center; margin-bottom: 20px;
+  }
+  .stamp-cell {
+    width: 100px; height: 100px; background: #fff; border: 2px solid #ccc;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2em; position: relative;
+  }
+  .stamp-mark {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: url('https://cdn-icons-png.flaticon.com/512/190/190411.png') center/60% no-repeat;
+    opacity: 0.8;
+  }
+  #qr-reader {
+    width: 300px; margin: 0 auto; display: none;
+  }
+  #complete-screen {
+    display: none; text-align: center; padding: 20px; background: #e8f5e9;
+    border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .form-group {
+    margin-bottom: 10px;
+  }
+  input, textarea {
+    width: 90%; padding: 8px; font-size: 1em; border: 1px solid #ccc; border-radius: 4px;
+  }
+  button {
+    padding: 10px 20px; background-color: #2e7d32; color: white; border: none;
+    border-radius: 6px; font-size: 1em; cursor: pointer;
+  }
+  button:hover { background-color: #1b5e20; }
+</style>
 </head>
 <body>
 
-  <h1>㈱ジェイアール東日本都市開発</h1>
-  <h2>総武支社</h2>
+<h1>㈱ジェイアール東日本都市開発 スタンプラリー</h1>
+<div id="map"></div>
 
-  <table>
-    <tr>
-      <th>部署</th>
-      <th>名前</th>
-    </tr>
-    <tr>
-      <td>企画総務部</td>
-      <td>庄司</td>
-    </tr>
-    <tr>
-      <td>開発管理部</td>
-      <td>松村</td>
-    </tr>
-  </table>
+<h2>スタンプラリー</h2>
+<div class="stamp-container" id="stampContainer"></div>
 
-  <!-- ホームページへ移動ボタン -->
-  <a href="https://www.jrtk.jp/" class="nav-button" target="_blank">JR東日本都市開発ホームページへ</a>
+<div id="qr-reader"></div>
 
-  <!-- Googleマップ -->
-  <div id="map"></div>
+<div id="complete-screen">
+  <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
+  <p>以下のフォームに入力して応募してください。</p>
+  <form id="entry-form">
+    <div class="form-group">
+      <input type="text" id="name" placeholder="お名前" required>
+    </div>
+    <div class="form-group">
+      <input type="email" id="email" placeholder="メールアドレス" required>
+    </div>
+    <div class="form-group">
+      <textarea id="comment" placeholder="コメント（任意）"></textarea>
+    </div>
+    <button type="submit">応募する</button>
+  </form>
+</div>
 
-  <script>
-    function initMap() {
-      const mapCenter = { lat: 35.659466436461635, lng: 139.8171347921082 };
+<!-- ライブラリ -->
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script>
+  // Google Map初期化
+  function initMap() {
+    const mapCenter = { lat: 35.659466436461635, lng: 139.8171347921082 };
+    const map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center: mapCenter });
+    const marker = new google.maps.Marker({ position: mapCenter, map: map, title: "潮見高架下" });
+  }
 
-      const map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 18,
-        center: mapCenter,
-      });
-
-      const customIcon = {
-        url: "https://github.com/tetsu-shoji/event-map/blob/main/siomix.png?raw=true",
-        scaledSize: new google.maps.Size(80, 80),
-        anchor: new google.maps.Point(20, 40)
-      };
-
-      const marker = new google.maps.Marker({
-        position: mapCenter,
-        map: map,
-        icon: customIcon,
-        title: "潮見高架下"
-      });
-
-      const infoWindow = new google.maps.InfoWindow({
-        content: "<h3>潮見高架下</h3><p>地域イベントの開催予定地です。</p>"
-      });
-
-      marker.addListener("click", () => {
-        infoWindow.open(map, marker);
-      });
+  // スタンプラリー生成
+  const container = document.getElementById('stampContainer');
+  const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
+  for (let i = 1; i <= 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'stamp-cell';
+    cell.textContent = 'B' + i;
+    if (savedStamps.includes('B' + i)) {
+      const stamp = document.createElement('div');
+      stamp.className = 'stamp-mark';
+      cell.appendChild(stamp);
     }
-  </script>
+    container.appendChild(cell);
+  }
 
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
+  // QRコードリーダー起動
+  document.getElementById('qr-reader').style.display = 'block';
+  const qrReader = new Html5Qrcode("qr-reader");
 
+  qrReader.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    qrCodeMessage => {
+      if (/^B[1-9]$/.test(qrCodeMessage)) {
+        const cells = document.querySelectorAll('.stamp-cell');
+        cells.forEach(cell => {
+          if (cell.textContent === qrCodeMessage && !cell.querySelector('.stamp-mark')) {
+            const stamp = document.createElement('div');
+            stamp.className = 'stamp-mark';
+            cell.appendChild(stamp);
+            savedStamps.push(qrCodeMessage);
+            localStorage.setItem('stamps', JSON.stringify(savedStamps));
+          }
+        });
+        checkCompletion();
+      }
+    },
+    errorMessage => console.warn(`読み取りエラー: ${errorMessage}`)
+  ).catch(err => alert('カメラ起動エラー: ' + err));
+
+  // コンプリート判定
+  function checkCompletion() {
+    if (savedStamps.length === 9) {
+      document.getElementById('complete-screen').style.display = 'block';
+      qrReader.stop(); // スキャン停止
+    }
+  }
+  checkCompletion(); // ページ読み込み時にも確認
+
+  // 応募フォーム送信
+  document.getElementById('entry-form').addEventListener('submit', e => {
+    e.preventDefault();
+    alert('応募が完了しました！\nお名前: ' + document.getElementById('name').value);
+    localStorage.removeItem('stamps'); // 応募後にリセット
+    location.reload();
+  });
+</script>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
 </body>
 </html>

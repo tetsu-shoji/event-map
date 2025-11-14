@@ -13,7 +13,6 @@
   .stamp-cell span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
   .stamp-mark { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: 70%; background-repeat: no-repeat; background-position: center; opacity: 0.9; }
   #map { width: 100%; height: 250px; margin-top: 20px; border-radius: 8px; }
-  #qr-reader { width: 90%; max-width: 350px; margin: 15px auto; display: none; }
   .btn-container { text-align: center; margin-bottom: 15px; }
   button { padding: 12px 20px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; width: 45%; }
   button:hover { background-color: #1b5e20; }
@@ -21,6 +20,10 @@
   .form-btn { display: inline-block; padding: 12px 20px; background-color: #0078D7; color: white; text-decoration: none; border-radius: 6px; font-size: 1.1em; margin-top: 10px; }
   .form-btn:hover { background-color: #005a9e; }
   #line-warning { display: none; text-align: center; background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 15px; border-radius: 6px; font-size: 1em; }
+  /* モーダル */
+  #qr-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; }
+  .modal-content { width:320px; height:360px; background:#fff; margin:100px auto; padding:10px; border-radius:8px; text-align:center; }
+  #qr-reader { width:300px; margin:auto; }
 </style>
 </head>
 <body>
@@ -30,7 +33,7 @@
 <!-- LINE警告メッセージ -->
 <div id="line-warning">
   LINEアプリ内ではカメラが起動できません。<br>
-  下のボタンから外部ブラウザ（Safari/Chrome）で開いてください。
+  下のボタンから外部ブラウザ（Safari/Chrome）で開いてください。<br>
   https://あなたのページURL外部ブラウザで開く</a>
 </div>
 
@@ -38,12 +41,18 @@
 <div class="stamp-container" id="stampContainer"></div>
 
 <div class="btn-container">
-  <button id="start-scan-btn">QR読み込み開始</button>
-  <button id="stop-scan-btn" disabled>停止</button>
+  <button onclick="openModal()">QR読み込み開始</button>
   <button id="reset-btn" style="background-color:#d9534f;">全削除</button>
 </div>
 
-<div id="qr-reader"></div>
+<!-- モーダル -->
+<div id="qr-modal">
+  <div class="modal-content">
+    <h3>QRコード読み取り</h3>
+    <div id="qr-reader"></div>
+    <button onclick="closeModal()" style="background-color:#d9534f;">閉じる</button>
+  </div>
+</div>
 
 <div id="complete-screen">
   <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
@@ -100,9 +109,8 @@ https://unpkg.com/html5-qrcode</script>
 
   let qrReader;
 
-  document.getElementById('start-scan-btn').addEventListener('click', () => {
-    document.getElementById('qr-reader').style.display = 'block';
-    document.getElementById('stop-scan-btn').disabled = false;
+  function openModal() {
+    document.getElementById('qr-modal').style.display = 'block';
     if (!qrReader) {
       qrReader = new Html5Qrcode("qr-reader");
     }
@@ -124,20 +132,17 @@ https://unpkg.com/html5-qrcode</script>
             }
           });
           checkCompletion();
+          closeModal(); // 読み取り完了後に自動で閉じる
         }
       },
       errorMessage => console.warn(`読み取りエラー: ${errorMessage}`)
     ).catch(err => alert('カメラ起動エラー: ' + err));
-  });
+  }
 
-  document.getElementById('stop-scan-btn').addEventListener('click', () => {
-    if (qrReader) {
-      qrReader.stop().then(() => {
-        alert('QR読み取りを停止しました');
-        document.getElementById('stop-scan-btn').disabled = true;
-      });
-    }
-  });
+  function closeModal() {
+    document.getElementById('qr-modal').style.display = 'none';
+    if (qrReader) qrReader.stop();
+  }
 
   document.getElementById('reset-btn').addEventListener('click', () => {
     localStorage.removeItem('stamps');
@@ -149,7 +154,6 @@ https://unpkg.com/html5-qrcode</script>
     if (savedStamps.length === 9) {
       document.getElementById('complete-screen').style.display = 'block';
       if (qrReader) qrReader.stop();
-      document.getElementById('stop-scan-btn').disabled = true;
     }
   }
   checkCompletion();
@@ -158,3 +162,4 @@ https://unpkg.com/html5-qrcode</script>
 <!-- Google Maps API -->
 https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap</script>
 </body>
+</html>

@@ -17,15 +17,13 @@
   button { padding: 12px 20px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; width: 45%; }
   button:hover { background-color: #1b5e20; }
   #complete-screen { display: none; text-align: center; padding: 15px; background: #e8f5e9; border-radius: 8px; }
-  .form-btn { display: inline-block; padding: 12px 20px; background-color: #0078D7; color: white; text-decoration: none; border-radius: 6px; font-size: 1.1em; margin-top: 10px; }
-  .form-btn:hover { background-color: #005a9e; }
   #line-warning { display: none; text-align: center; background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 15px; border-radius: 6px; font-size: 1em; }
-  #open-browser-btn { padding: 10px 20px; background:#0078D7; color:#fff; border:none; border-radius:6px; font-size:1em; cursor:pointer; margin-top:10px; }
-  #open-browser-btn:hover { background:#005a9e; }
+  #open-browser-btn, #copy-url-btn { padding: 10px 20px; background:#0078D7; color:#fff; border:none; border-radius:6px; font-size:1em; cursor:pointer; margin:5px; }
+  #open-browser-btn:hover, #copy-url-btn:hover { background:#005a9e; }
   /* モーダル */
   #qr-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; }
-  .modal-content { width:320px; height:360px; background:#fff; margin:100px auto; padding:10px; border-radius:8px; text-align:center; }
-  #qr-reader { width:300px; margin:auto; }
+  .modal-content { width:360px; height:420px; background:#fff; margin:80px auto; padding:10px; border-radius:8px; text-align:center; display:flex; flex-direction:column; justify-content:space-between; }
+  #qr-reader { width:220px; margin:auto; }
 </style>
 </head>
 <body>
@@ -36,16 +34,17 @@
 <div id="line-warning">
   LINEアプリ内ではカメラが起動できません。<br>
   下のボタンから外部ブラウザ（Safari/Chrome）で開いてください。<br>
-  <button id="open-browser-btn" aria-label="外部ブラウザで開く">外部ブラウザで開く</button>
-  <p style="font-size:0.9em;">開けない場合はURLをコピーしてSafari/Chromeで開いてください。</p>
+  <button id="open-browser-btn">外部ブラウザで開く</button>
+  <button id="copy-url-btn">URLをコピー</button>
+  <p style="font-size:0.9em;">開けない場合はコピーしたURLをSafari/Chromeで貼り付けてください。</p>
 </div>
 
 <h2>スタンプラリー</h2>
 <div class="stamp-container" id="stampContainer"></div>
 
 <div class="btn-container">
-  <button onclick="openModal()" aria-label="QRコード読み込み開始">QR読み込み開始</button>
-  <button id="reset-btn" style="background-color:#d9534f;" aria-label="スタンプ全削除">全削除</button>
+  <button onclick="openModal()">QR読み込み開始</button>
+  <button id="reset-btn" style="background-color:#d9534f;">全削除</button>
 </div>
 
 <!-- モーダル -->
@@ -53,7 +52,7 @@
   <div class="modal-content">
     <h3>QRコード読み取り</h3>
     <div id="qr-reader"></div>
-    <button onclick="closeModal()" style="background-color:#d9534f;" aria-label="閉じる">閉じる</button>
+    <button onclick="closeModal()" style="background-color:#d9534f;">閉じる</button>
   </div>
 </div>
 
@@ -70,25 +69,29 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
+  const url = "https://tetsu-shoji.github.io/event-map/";
+
   // LINEブラウザ検出
   if (navigator.userAgent.includes("Line")) {
     document.getElementById('line-warning').style.display = 'block';
   }
 
-  // 外部ブラウザで開くボタン処理
-  document.getElementById('open-browser-btn').addEventListener('click', async () => {
-    const url = "https://tetsu-shoji.github.io/event-map/";
+  // 外部ブラウザで開く
+  document.getElementById('open-browser-btn').addEventListener('click', () => {
     try {
-      window.location.href = url; // LINE内では制限される場合あり
+      window.open(url, '_blank'); // 新しいタブで開く
     } catch (e) {
-      alert("ネットワークを確認してください。開けない場合はURLをコピーしてSafari/Chromeで開いてください。\n" + url);
+      alert("開けない場合はURLをコピーしてSafari/Chromeで開いてください。\n" + url);
     }
-    // クリップボードにコピー
+  });
+
+  // URLコピー
+  document.getElementById('copy-url-btn').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(url);
       alert("URLをコピーしました。SafariまたはChromeで貼り付けて開いてください。");
     } catch (err) {
-      console.warn("クリップボードコピー失敗:", err);
+      alert("コピーに失敗しました。手動でコピーしてください。\n" + url);
     }
   });
 
@@ -137,7 +140,7 @@
     try {
       await qrReader.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
+        { fps: 10, qrbox: 200 }, // カメラ枠を小さく
         qrCodeMessage => {
           if (/^B[1-9]$/.test(qrCodeMessage)) {
             const index = parseInt(qrCodeMessage.replace('B','')) - 1;
@@ -153,7 +156,7 @@
               }
             });
             checkCompletion();
-            closeModal(); // 読み取り完了後に自動で閉じる
+            closeModal();
           }
         },
         errorMessage => console.warn(`読み取りエラー: ${errorMessage}`)
@@ -187,3 +190,4 @@
 <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap" async defer></script>
 </body>
 </html>
+

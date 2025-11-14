@@ -20,11 +20,20 @@
   #complete-screen { display: none; text-align: center; padding: 15px; background: #e8f5e9; border-radius: 8px; }
   .form-btn { display: inline-block; padding: 12px 20px; background-color: #0078D7; color: white; text-decoration: none; border-radius: 6px; font-size: 1.1em; margin-top: 10px; }
   .form-btn:hover { background-color: #005a9e; }
+  #line-warning { display: none; text-align: center; background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 15px; border-radius: 6px; font-size: 1em; }
 </style>
 </head>
 <body>
 
 <h1>㈱ジェイアール東日本都市開発 スタンプラリー</h1>
+
+<!-- LINE警告メッセージ -->
+<div id="line-warning">
+  LINEアプリ内ではカメラが起動できません。<br>
+  下のボタンから外部ブラウザ（Safari/Chrome）で開いてください。
+  https://あなたのページURL外部ブラウザで開く</a>
+</div>
+
 <h2>スタンプラリー</h2>
 <div class="stamp-container" id="stampContainer"></div>
 
@@ -39,16 +48,21 @@
 <div id="complete-screen">
   <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
-  <a href="https://forms.office.com/r/sn3wvtS6Yy" target="_blank" class="form-btn">応募フォームへ</a>
+  https://forms.office.com/r/sn3wvtS6Yy応募フォームへ</a>
   <p>※送信後、この画面を受付で提示してください。</p>
 </div>
 
 <div id="map"></div>
 
 <!-- QRコードライブラリ -->
-<script src="https://unpkg.com/html5-qrcode"></script>
+https://unpkg.com/html5-qrcode</script>
 
 <script>
+  // LINEブラウザ検出
+  if (navigator.userAgent.includes("Line")) {
+    document.getElementById('line-warning').style.display = 'block';
+  }
+
   const stampImages = [
     'https://cdn-icons-png.flaticon.com/512/616/616408.png',
     'https://cdn-icons-png.flaticon.com/512/616/616430.png',
@@ -142,6 +156,5 @@
 </script>
 
 <!-- Google Maps API -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
+https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap</script>
 </body>
-</html>

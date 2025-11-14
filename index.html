@@ -3,65 +3,68 @@
 <head>
     <title>Google Map カスタムマーカーの例</title>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /*
-        地図コンテナ（#map）のスタイルを定義します。
-        地図を表示するには、必ず高さを指定する必要があります。
-        */
         #map {
-            height: 100vh; /* 画面の高さ全体 */
-            width: 100%; /* 幅全体 */
+            height: 100vh;
+            width: 100%;
+        }
+        /* ボタンのスタイル */
+        .nav-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background-color: #0078D7;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 999; /* 地図より前面に表示 */
+        }
+        .nav-button:hover {
+            background-color: #005a9e;
         }
     </style>
 </head>
 <body>
+    <!-- 移動ボタン -->
+    <button class="nav-button" onclick="window.location.href='https://www.jrtk.jp/'">
+        JR東日本都市開発ホームページへ
+    </button>
+
     <div id="map"></div>
 
     <script>
-        /**
-         * Google Map APIが読み込まれた後に実行される初期化関数
-         */
         function initMap() {
-            // 1. 地図の中心座標を定義 (例: 東京駅)
             const mapCenter = { lat: 35.659466436461635, lng: 139.8171347921082 };
 
-            // 2. 地図のオプションを設定し、地図オブジェクトを作成
             const map = new google.maps.Map(document.getElementById("map"), {
-                zoom: 18, // ズームレベル
-                center: mapCenter, // 中心座標
+                zoom: 18,
+                center: mapCenter,
             });
 
-            // 3. カスタムマーカーのアイコンを定義
             const customIcon = {
-                // ★★★ ここにカスタム画像のURLを指定します ★★★
-                // これは例の画像です。使用したい画像URLに変更してください。
-                url: "https://github.com/tetsu-shoji/event-map/blob/main/siomix.png?raw=true", 
-                
-                // アイコンのサイズを調整 (ピクセル単位)
-                scaledSize: new google.maps.Size(80, 80), 
-
-                // マーカー画像のどの部分を座標の「中心」にするかを指定
-                anchor: new google.maps.Point(20, 40) 
+                url: "https://github.com/tetsu-shoji/event-map/blob/main/siomix.png?raw=true",
+                scaledSize: new google.maps.Size(80, 80),
+                anchor: new google.maps.Point(20, 40)
             };
 
-            // 4. マーカーオブジェクトを作成し、地図上に配置
             const marker = new google.maps.Marker({
-                position: mapCenter, // マーカーを置く座標
-                map: map, // どの地図オブジェクトに配置するか
-                icon: customIcon, // カスタムアイコンを適用
+                position: mapCenter,
+                map: map,
+                icon: customIcon,
                 title: "カスタムピンの場所"
             });
-            
-            // 5. インフォウィンドウの内容を定義
+
             const infoWindow = new google.maps.InfoWindow({
-                content:"<h3>潮見高架下</h3><p>地域イベントの開催予定地です。</p>"                    
+                content:"<h3>潮見高架下</h3><p>地域イベントの開催予定地です。</p>"
             });
 
-            // 6. マーカーをクリックしたときにインフォウィンドウを表示
             marker.addListener("click", () => {
                 infoWindow.open(map, marker);
             });
-
         }
     </script>
 

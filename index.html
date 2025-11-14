@@ -59,29 +59,44 @@
 <div id="complete-screen">
   <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
-  <a href="https://forms.office.com/r/sn3wvtS6Yy" class="form-btn" target="_blank">応募フォームへ</a>
+  <a href="https://forms.office.com/r/sn3wvtS6Yy" target="_blank" class="form-btn">応募フォームへ</a>
   <p>※送信後、この画面を受付で提示してください。</p>
 </div>
 
 <div id="map"></div>
 
+<!-- LIFF SDK -->
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <!-- QRコードライブラリ -->
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
   const url = "https://tetsu-shoji.github.io/event-map/";
 
+  // LIFF初期化
+  async function initLiff() {
+    try {
+      await liff.init({ liffId: "2008298139-lwyMjbwP" }); // 指定されたLIFF ID
+      if (!liff.isLoggedIn()) {
+        liff.login();
+      }
+    } catch (err) {
+      console.error('LIFF init error:', err);
+    }
+  }
+  initLiff();
+
   // LINEブラウザ検出
   if (navigator.userAgent.includes("Line")) {
     document.getElementById('line-warning').style.display = 'block';
   }
 
-  // 外部ブラウザで開く
+  // 外部ブラウザで開く（LIFF対応）
   document.getElementById('open-browser-btn').addEventListener('click', () => {
-    try {
-      window.open(url, '_blank'); // 新しいタブで開く
-    } catch (e) {
-      alert("開けない場合はURLをコピーしてSafari/Chromeで開いてください。\n" + url);
+    if (typeof liff !== 'undefined') {
+      liff.openWindow({ url: url, external: true }); // 外部ブラウザで開く
+    } else {
+      window.open(url, '_blank');
     }
   });
 
@@ -140,7 +155,7 @@
     try {
       await qrReader.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: 200 }, // カメラ枠を小さく
+        { fps: 10, qrbox: 200 },
         qrCodeMessage => {
           if (/^B[1-9]$/.test(qrCodeMessage)) {
             const index = parseInt(qrCodeMessage.replace('B','')) - 1;
@@ -187,7 +202,6 @@
 </script>
 
 <!-- Google Maps API -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
 </body>
 </html>
-

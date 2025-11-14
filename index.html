@@ -20,6 +20,8 @@
   .form-btn { display: inline-block; padding: 12px 20px; background-color: #0078D7; color: white; text-decoration: none; border-radius: 6px; font-size: 1.1em; margin-top: 10px; }
   .form-btn:hover { background-color: #005a9e; }
   #line-warning { display: none; text-align: center; background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 15px; border-radius: 6px; font-size: 1em; }
+  #open-browser-btn { padding: 10px 20px; background:#0078D7; color:#fff; border:none; border-radius:6px; font-size:1em; cursor:pointer; margin-top:10px; }
+  #open-browser-btn:hover { background:#005a9e; }
   /* モーダル */
   #qr-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; }
   .modal-content { width:320px; height:360px; background:#fff; margin:100px auto; padding:10px; border-radius:8px; text-align:center; }
@@ -34,7 +36,8 @@
 <div id="line-warning">
   LINEアプリ内ではカメラが起動できません。<br>
   下のボタンから外部ブラウザ（Safari/Chrome）で開いてください。<br>
-  <a href="https://あなたのページURL" target="_blank">外部ブラウザで開く</a>
+  <button id="open-browser-btn" aria-label="外部ブラウザで開く">外部ブラウザで開く</button>
+  <p style="font-size:0.9em;">開けない場合はURLをコピーしてSafari/Chromeで開いてください。</p>
 </div>
 
 <h2>スタンプラリー</h2>
@@ -57,7 +60,7 @@
 <div id="complete-screen">
   <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
-  <a href="https://forms.office.com/r/sn3wvtS6Yy" target="_blank" class="form-btn">応募フォームへ</a>
+  <a href="https://forms.office.com/r/sn3wvtS6Yy" class="form-btn" target="_blank">応募フォームへ</a>
   <p>※送信後、この画面を受付で提示してください。</p>
 </div>
 
@@ -71,6 +74,23 @@
   if (navigator.userAgent.includes("Line")) {
     document.getElementById('line-warning').style.display = 'block';
   }
+
+  // 外部ブラウザで開くボタン処理
+  document.getElementById('open-browser-btn').addEventListener('click', async () => {
+    const url = "https://tetsu-shoji.github.io/event-map/";
+    try {
+      window.location.href = url; // LINE内では制限される場合あり
+    } catch (e) {
+      alert("ネットワークを確認してください。開けない場合はURLをコピーしてSafari/Chromeで開いてください。\n" + url);
+    }
+    // クリップボードにコピー
+    try {
+      await navigator.clipboard.writeText(url);
+      alert("URLをコピーしました。SafariまたはChromeで貼り付けて開いてください。");
+    } catch (err) {
+      console.warn("クリップボードコピー失敗:", err);
+    }
+  });
 
   const stampImages = [
     'https://cdn-icons-png.flaticon.com/512/616/616408.png',
@@ -166,3 +186,4 @@
 <!-- Google Maps API -->
 <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap" async defer></script>
 </body>
+</html>

@@ -1,73 +1,145 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-    <title>Google Map カスタムマーカーの例</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        #map {
-            height: 100vh;
-            width: 100%;
-        }
-        /* ボタンのスタイル */
-        .nav-button {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            padding: 10px 20px;
-            background-color: #0078D7;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 999; /* 地図より前面に表示 */
-        }
-        .nav-button:hover {
-            background-color: #005a9e;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>ジェイアール東日本都市開発</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6f8;
+      margin: 40px;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 2em;
+      color: #2e7d32;
+      margin-bottom: 0.2em;
+    }
+
+    h2 {
+      font-size: 1.4em;
+      color: #34495e;
+      margin-bottom: 1em;
+    }
+
+    table {
+      width: 400px;
+      border-collapse: collapse;
+      background: #ffffff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #2e7d32;
+      color: white;
+      font-weight: bold;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #e8f5e9;
+    }
+
+    tr:hover td {
+      background-color: #e8e6c9;
+      transition: background-color 0.3s ease;
+    }
+
+    /* ボタンのスタイル */
+    .nav-button {
+      display: inline-block;
+      margin: 20px 0;
+      padding: 12px 24px;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1em;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .nav-button:hover {
+      background-color: #1b5e20;
+    }
+
+    /* 地図のスタイル */
+    #map {
+      width: 100%;
+      height: 500px;
+      margin-top: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+  </style>
 </head>
 <body>
-    <!-- 移動ボタン -->
-    <button class="nav-button" onclick="window.location.href='https://www.jrtk.jp/'">
-        JR東日本都市開発ホームページへ
-    </button>
 
-    <div id="map"></div>
+  <h1>㈱ジェイアール東日本都市開発</h1>
+  <h2>総武支社</h2>
 
-    <script>
-        function initMap() {
-            const mapCenter = { lat: 35.659466436461635, lng: 139.8171347921082 };
+  <table>
+    <tr>
+      <th>部署</th>
+      <th>名前</th>
+    </tr>
+    <tr>
+      <td>企画総務部</td>
+      <td>庄司</td>
+    </tr>
+    <tr>
+      <td>開発管理部</td>
+      <td>松村</td>
+    </tr>
+  </table>
 
-            const map = new google.maps.Map(document.getElementById("map"), {
-                zoom: 18,
-                center: mapCenter,
-            });
+  <!-- ホームページへ移動ボタン -->
+  <a href="https://www.jrtk.jp/" class="nav-button" target="_blank">JR東日本都市開発ホームページへ</a>
 
-            const customIcon = {
-                url: "https://github.com/tetsu-shoji/event-map/blob/main/siomix.png?raw=true",
-                scaledSize: new google.maps.Size(80, 80),
-                anchor: new google.maps.Point(20, 40)
-            };
+  <!-- Googleマップ -->
+  <div id="map"></div>
 
-            const marker = new google.maps.Marker({
-                position: mapCenter,
-                map: map,
-                icon: customIcon,
-                title: "カスタムピンの場所"
-            });
+  <script>
+    function initMap() {
+      const mapCenter = { lat: 35.659466436461635, lng: 139.8171347921082 };
 
-            const infoWindow = new google.maps.InfoWindow({
-                content:"<h3>潮見高架下</h3><p>地域イベントの開催予定地です。</p>"
-            });
+      const map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 18,
+        center: mapCenter,
+      });
 
-            marker.addListener("click", () => {
-                infoWindow.open(map, marker);
-            });
-        }
-    </script>
+      const customIcon = {
+        url: "https://github.com/tetsu-shoji/event-map/blob/main/siomix.png?raw=true",
+        scaledSize: new google.maps.Size(80, 80),
+        anchor: new google.maps.Point(20, 40)
+      };
 
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
+      const marker = new google.maps.Marker({
+        position: mapCenter,
+        map: map,
+        icon: customIcon,
+        title: "潮見高架下"
+      });
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: "<h3>潮見高架下</h3><p>地域イベントの開催予定地です。</p>"
+      });
+
+      marker.addListener("click", () => {
+        infoWindow.open(map, marker);
+      });
+    }
+  </script>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
+
 </body>
 </html>

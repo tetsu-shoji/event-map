@@ -52,7 +52,7 @@
     color: #fff;
     display:flex; align-items:center; justify-content:center;
     font-size: 0.8em; font-weight:bold;
-    animation: bounce 0.6s ease; /* 弾むアニメーション */
+    animation: bounce 0.6s ease;
   }
   @keyframes bounce {
     0% { transform: scale(0.5); opacity: 0; }
@@ -114,7 +114,6 @@
   #form-btn:hover {
     background-color: #0056b3;
   }
-  /* モーダル中央表示＋フェード */
   #qr-modal {
     display: none;
     position: fixed;
@@ -197,10 +196,6 @@
 <!-- 花火Canvas -->
 <canvas id="fireworks"></canvas>
 
-<!-- 音声 -->
-<audio id="stamp-sound" src="https://www.soundjay.com/button/sounds/button-16.mp3" preload="auto"></audio>
-<audio id="fanfare" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" preload="auto"></audio>
-
 <!-- QRコードライブラリ -->
 <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -228,8 +223,8 @@
 
   async function openModal() {
     const modal = document.getElementById('qr-modal');
-    modal.classList.add('show'); // フェードイン
-    if (!qrReader) qrReader = new Html5Qrcode("qr-reader");
+    modal.classList.add('show');
+    qrReader = new Html5Qrcode("qr-reader"); // 毎回新しいインスタンス
     try {
       await qrReader.start(
         { facingMode: "environment" },
@@ -246,7 +241,6 @@
                 cell.appendChild(stamp);
                 savedStamps.push('stamp' + index);
                 localStorage.setItem('stamps', JSON.stringify(savedStamps));
-                document.getElementById('stamp-sound').play(); // 音声
               }
             });
             checkBingo();
@@ -262,7 +256,7 @@
 
   async function closeModal() {
     const modal = document.getElementById('qr-modal');
-    modal.style.opacity = '0'; // フェードアウト
+    modal.style.opacity = '0';
     setTimeout(() => {
       modal.classList.remove('show');
       modal.style.opacity = '';
@@ -281,15 +275,14 @@
 
   function checkBingo() {
     const bingoPatterns = [
-      [1,2,3],[4,5,6],[7,8,9], // 横
-      [1,4,7],[2,5,8],[3,6,9], // 縦
-      [1,5,9],[3,5,7]          // 斜め
+      [1,2,3],[4,5,6],[7,8,9],
+      [1,4,7],[2,5,8],[3,6,9],
+      [1,5,9],[3,5,7]
     ];
     for (let pattern of bingoPatterns) {
       if (pattern.every(num => savedStamps.includes('stamp' + num))) {
         document.getElementById('complete-screen').style.display = 'block';
         launchFireworks();
-        playFanfare();
         document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
         if (qrReader) qrReader.stop();
         break;
@@ -298,7 +291,6 @@
   }
   checkBingo();
 
-  // 花火アニメーション
   function launchFireworks() {
     const canvas = document.getElementById('fireworks');
     const ctx = canvas.getContext('2d');
@@ -344,10 +336,6 @@
     setTimeout(() => {
       canvas.style.display = 'none';
     }, 5000);
-  }
-
-  function playFanfare() {
-    document.getElementById('fanfare').play();
   }
 </script>
 </body>

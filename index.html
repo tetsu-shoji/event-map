@@ -52,6 +52,12 @@
     color: #fff;
     display:flex; align-items:center; justify-content:center;
     font-size: 0.8em; font-weight:bold;
+    animation: bounce 0.6s ease;
+  }
+  @keyframes bounce {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); }
   }
   .btn-container {
     text-align: center;
@@ -84,6 +90,28 @@
   #reset-btn:hover {
     background-color:#c9302c;
   }
+  /* 進捗バー */
+  .progress-container {
+    width: 90%;
+    margin: 10px auto;
+    background: #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 20px;
+    position: relative;
+  }
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #2e7d32;
+    transition: width 0.4s ease;
+  }
+  .progress-text {
+    text-align: center;
+    margin-top: 5px;
+    font-size: 0.9em;
+    font-weight: bold;
+  }
   #complete-screen {
     display: none;
     text-align: center;
@@ -108,7 +136,7 @@
   #form-btn:hover {
     background-color: #0056b3;
   }
-  /* モーダル中央表示 */
+  /* モーダル中央表示＋フェード */
   #qr-modal {
     display: none;
     position: fixed;
@@ -118,9 +146,14 @@
     height: 100%;
     background: rgba(0,0,0,0.5);
     z-index: 999;
-    display: flex;
     align-items: center;
     justify-content: center;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  #qr-modal.show {
+    display: flex;
+    opacity: 1;
   }
   .modal-content {
     width: 90%;
@@ -156,6 +189,12 @@
 <div class="map-container">
   <iframe src="https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F" loading="lazy"></iframe>
 </div>
+
+<!-- 進捗バー -->
+<div class="progress-container">
+  <div class="progress-bar" id="progress-bar"></div>
+</div>
+<div class="progress-text" id="progress-text">達成率: 0%</div>
 
 <!-- スタンプ -->
 <div class="stamp-container" id="stampContainer"></div>
@@ -213,10 +252,13 @@
     container.appendChild(cell);
   }
 
+  updateProgress();
+
   let qrReader;
 
   async function openModal() {
-    document.getElementById('qr-modal').style.display = 'flex';
+    const modal = document.getElementById('qr-modal');
+    modal.classList.add('show');
     if (!qrReader) qrReader = new Html5Qrcode("qr-reader");
     try {
       await qrReader.start(
@@ -234,7 +276,8 @@
                 cell.appendChild(stamp);
                 savedStamps.push('stamp' + index);
                 localStorage.setItem('stamps', JSON.stringify(savedStamps));
-                document.getElementById('stamp-sound').play(); // スタンプ音
+                document.getElementById('stamp-sound').play();
+                updateProgress();
               }
             });
             checkBingo();
@@ -249,7 +292,13 @@
   }
 
   async function closeModal() {
-    document.getElementById('qr-modal').style.display = 'none';
+    const modal = document.getElementById('qr-modal');
+    modal.style.opacity = '0';
+    setTimeout(() => {
+      modal.classList.remove('show');
+      modal.style.opacity = '';
+      modal.style.display = 'none';
+    }, 400);
     if (qrReader) await qrReader.stop();
   }
 
@@ -260,6 +309,12 @@
       location.reload();
     }
   });
+
+  function updateProgress() {
+    const progress = (savedStamps.length / 9) * 100;
+    document.getElementById('progress-bar').style.width = progress + '%';
+    document.getElementById('progress-text').textContent = savedStamps.length === 9 ? '達成率: 100% (ビンゴ達成!)' : `達成率: ${Math.floor(progress)}%`;
+  }
 
   function checkBingo() {
     const bingoPatterns = [
@@ -272,7 +327,7 @@
         document.getElementById('complete-screen').style.display = 'block';
         launchFireworks();
         playFanfare();
-        document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' }); // スクロール
+        document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
         if (qrReader) qrReader.stop();
         break;
       }
@@ -280,7 +335,6 @@
   }
   checkBingo();
 
-  // 花火アニメーション
   function launchFireworks() {
     const canvas = document.getElementById('fireworks');
     const ctx = canvas.getContext('2d');
@@ -328,3 +382,4 @@
     }, 5000);
   }
 
+  function playFanfare() {

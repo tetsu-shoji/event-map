@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>ShiomiXスタンプラリー</title>
+<title>ShiomiXビンゴ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
   body {
@@ -20,7 +20,7 @@
   }
   .map-container {
     width: 100%;
-    height: 45vh; /* 画面の約半分 */
+    height: 45vh;
   }
   iframe {
     width: 100%;
@@ -98,6 +98,8 @@
     border-radius: 8px;
     font-size: 0.9em;
     margin: 8px;
+    position: relative;
+    z-index: 1000;
   }
   #qr-modal {
     display:none;
@@ -123,11 +125,22 @@
     width:180px;
     margin:auto;
   }
+  /* 花火Canvas */
+  #fireworks {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    display: none;
+  }
 </style>
 </head>
 <body>
 
-<h1>ShiomiXスタンプラリー</h1>
+<h1>ShiomiXビンゴ</h1>
 
 <!-- Googleマップ -->
 <div class="map-container">
@@ -154,11 +167,17 @@
 
 <!-- 完了画面 -->
 <div id="complete-screen">
-  <h2>🎉 コンプリートおめでとうございます！ 🎉</h2>
+  <h2>🎉 ビンゴ達成！おめでとうございます 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
   <a href="https://forms.office.com/r/sn3wvtS6Yy" target="_blank">応募フォームへ</a>
   <p>※送信後、この画面を受付で提示してください。</p>
 </div>
+
+<!-- 花火Canvas -->
+<canvas id="fireworks"></canvas>
+
+<!-- 音声効果 -->
+<audio id="fanfare" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" preload="auto"></audio>
 
 <!-- QRコードライブラリ -->
 <script src="https://unpkg.com/html5-qrcode"></script>
@@ -206,7 +225,7 @@
                 localStorage.setItem('stamps', JSON.stringify(savedStamps));
               }
             });
-            checkCompletion();
+            checkBingo();
             closeModal();
           }
         },
@@ -230,13 +249,76 @@
     }
   });
 
-  function checkCompletion() {
-    if (savedStamps.length === 9) {
-      document.getElementById('complete-screen').style.display = 'block';
-      if (qrReader) qrReader.stop();
+  function checkBingo() {
+    const bingoPatterns = [
+      [1,2,3],[4,5,6],[7,8,9], // 横
+      [1,4,7],[2,5,8],[3,6,9], // 縦
+      [1,5,9],[3,5,7]          // 斜め
+    ];
+    for (let pattern of bingoPatterns) {
+      if (pattern.every(num => savedStamps.includes('stamp' + num))) {
+        document.getElementById('complete-screen').style.display = 'block';
+        launchFireworks();
+        playFanfare();
+        if (qrReader) qrReader.stop();
+        break;
+      }
     }
   }
-  checkCompletion();
+  checkBingo();
+
+  // 花火アニメーション
+  function launchFireworks() {
+    const canvas = document.getElementById('fireworks');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.display = 'block';
+
+    const particles = [];
+    function createFirework(x, y) {
+      for (let i = 0; i < 100; i++) {
+        particles.push({
+          x: x,
+          y: y,
+          angle: Math.random() * 2 * Math.PI,
+          speed: Math.random() * 5 + 2,
+          radius: Math.random() * 2 + 1,
+          color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+          life: 100
+        });
+      }
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach((p, i) => {
+        p.x += Math.cos(p.angle) * p.speed;
+        p.y += Math.sin(p.angle) * p.speed;
+        p.life--;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+        if (p.life <= 0) particles.splice(i, 1);
+      });
+      if (particles.length > 0) requestAnimationFrame(animate);
+    }
+
+    for (let i = 0; i < 5; i++) {
+      createFirework(Math.random() * canvas.width, Math.random() * canvas.height);
+    }
+    animate();
+
+    setTimeout(() => {
+      canvas.style.display = 'none';
+    }, 5000);
+  }
+
+  // 音声効果
+  function playFanfare() {
+    document.getElementById('fanfare').play();
+  }
 </script>
 </body>
 </html>

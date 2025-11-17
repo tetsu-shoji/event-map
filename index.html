@@ -227,8 +227,12 @@
 
     // 前回のインスタンスが残っていれば完全解放
     if (qrReader) {
-      await qrReader.stop();
-      await qrReader.clear();
+      try {
+        await qrReader.stop();
+        await qrReader.clear();
+      } catch (e) {
+        console.warn("前回のQRリーダー解放時エラー:", e);
+      }
       qrReader = null;
     }
 
@@ -272,8 +276,12 @@
     }, 400);
 
     if (qrReader) {
-      await qrReader.stop();
-      await qrReader.clear();
+      try {
+        await qrReader.stop();
+        await qrReader.clear();
+      } catch (e) {
+        console.warn("QRリーダー停止時エラー:", e);
+      }
       qrReader = null;
     }
   }
@@ -298,8 +306,12 @@
         launchFireworks();
         document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
         if (qrReader) {
-          qrReader.stop();
-          qrReader.clear();
+          try {
+            await qrReader.stop();
+            await qrReader.clear();
+          } catch (e) {
+            console.warn("QRリーダー停止時エラー:", e);
+          }
           qrReader = null;
         }
         break;

@@ -12,12 +12,6 @@
     padding: 0;
     color: #333;
   }
-  h1 {
-    font-size: 2em;
-    color: #00aaff;
-    text-align: center;
-    margin: 10px 0;
-  }
   .map-container {
     width: 100%;
     height: 45vh;
@@ -101,31 +95,19 @@
     position: relative;
     z-index: 1000;
   }
-  #qr-modal {
-    display:none;
-    position:fixed;
-    top:0; left:0;
-    width:100%; height:100%;
-    background:rgba(0,0,0,0.5);
-    z-index:999;
+  #form-btn {
+    padding: 12px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1em;
+    cursor: pointer;
+    margin-top: 10px;
   }
-  .modal-content {
-    width:300px;
-    height:360px;
-    background:#fff;
-    margin:80px auto;
-    padding:10px;
-    border-radius:8px;
-    text-align:center;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
+  #form-btn:hover {
+    background-color: #0056b3;
   }
-  #qr-reader {
-    width:180px;
-    margin:auto;
-  }
-  /* 花火Canvas */
   #fireworks {
     position: fixed;
     top: 0;
@@ -140,11 +122,9 @@
 </head>
 <body>
 
-<h1>ShiomiXビンゴ</h1>
-
 <!-- Googleマップ -->
 <div class="map-container">
-  https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F</iframe>
+  <iframe src="https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F" loading="lazy"></iframe>
 </div>
 
 <!-- スタンプ -->
@@ -169,18 +149,19 @@
 <div id="complete-screen">
   <h2>🎉 ビンゴ達成！おめでとうございます 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
-  https://forms.office.com/r/sn3wvtS6Yy応募フォームへ</a>
+  <button id="form-btn" onclick="window.open('https://forms.office.com/r/sn3wvtS6Yy','_blank')">応募フォームへ</button>
   <p>※送信後、この画面を受付で提示してください。</p>
 </div>
 
 <!-- 花火Canvas -->
 <canvas id="fireworks"></canvas>
 
-<!-- 音声効果 -->
-https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3</audio>
+<!-- 音声ファイル -->
+<audio id="stamp-sound" src="https://www.soundjay.com/button/sounds/button-16.mp3" preload="auto"></audio>
+<audio id="fanfare" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" preload="auto"></audio>
 
 <!-- QRコードライブラリ -->
-https://unpkg.com/html5-qrcode</script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
   const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
@@ -223,6 +204,7 @@ https://unpkg.com/html5-qrcode</script>
                 cell.appendChild(stamp);
                 savedStamps.push('stamp' + index);
                 localStorage.setItem('stamps', JSON.stringify(savedStamps));
+                document.getElementById('stamp-sound').play(); // スタンプ音
               }
             });
             checkBingo();
@@ -260,6 +242,7 @@ https://unpkg.com/html5-qrcode</script>
         document.getElementById('complete-screen').style.display = 'block';
         launchFireworks();
         playFanfare();
+        document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' }); // スクロール
         if (qrReader) qrReader.stop();
         break;
       }

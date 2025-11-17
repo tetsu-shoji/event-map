@@ -108,6 +108,36 @@
   #form-btn:hover {
     background-color: #0056b3;
   }
+  /* モーダル中央表示 */
+  #qr-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-content {
+    width: 90%;
+    max-width: 320px;
+    background: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  #qr-reader {
+    width: 100%;
+    max-width: 250px;
+    margin: auto;
+  }
   #fireworks {
     position: fixed;
     top: 0;
@@ -141,7 +171,7 @@
   <div class="modal-content">
     <h3>QRコード読み取り</h3>
     <div id="qr-reader"></div>
-    <button onclick="closeModal()" style="background-color:#d9534f;">閉じる</button>
+    <button onclick="closeModal()" style="background-color:#d9534f;color:white;padding:10px;border:none;border-radius:6px;">閉じる</button>
   </div>
 </div>
 
@@ -156,7 +186,7 @@
 <!-- 花火Canvas -->
 <canvas id="fireworks"></canvas>
 
-<!-- 音声ファイル -->
+<!-- 音声 -->
 <audio id="stamp-sound" src="https://www.soundjay.com/button/sounds/button-16.mp3" preload="auto"></audio>
 <audio id="fanfare" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" preload="auto"></audio>
 
@@ -186,7 +216,7 @@
   let qrReader;
 
   async function openModal() {
-    document.getElementById('qr-modal').style.display = 'block';
+    document.getElementById('qr-modal').style.display = 'flex';
     if (!qrReader) qrReader = new Html5Qrcode("qr-reader");
     try {
       await qrReader.start(
@@ -298,10 +328,3 @@
     }, 5000);
   }
 
-  // 音声効果
-  function playFanfare() {
-    document.getElementById('fanfare').play();
-  }
-</script>
-</body>
-</html>

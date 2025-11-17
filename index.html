@@ -200,6 +200,7 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
+document.addEventListener('DOMContentLoaded', () => {
   const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
   const container = document.getElementById('stampContainer');
 
@@ -218,154 +219,156 @@
     }
     container.appendChild(cell);
   }
+});
 
-  let qrReader;
+let qrReader;
 
-  async function openModal() {
-    const modal = document.getElementById('qr-modal');
-    modal.classList.add('show');
+async function openModal() {
+  const modal = document.getElementById('qr-modal');
+  modal.classList.add('show');
 
-    // 前回のインスタンスが残っていれば完全解放
-    if (qrReader) {
-      try {
-        await qrReader.stop();
-        await qrReader.clear();
-      } catch (e) {
-        console.warn("前回のQRリーダー解放時エラー:", e);
-      }
-      qrReader = null;
-    }
-
-    qrReader = new Html5Qrcode("qr-reader");
+  // 前回のインスタンスが残っていれば完全解放
+  if (qrReader) {
     try {
-      await qrReader.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 160 },
-        qrCodeMessage => {
-          if (/^stamp[1-9]$/.test(qrCodeMessage)) {
-            const index = parseInt(qrCodeMessage.replace('stamp',''));
-            const cells = document.querySelectorAll('.stamp-cell');
-            cells.forEach(cell => {
-              if (cell.textContent.includes('スタンプ' + index) && !cell.querySelector('.stamp-mark')) {
-                const stamp = document.createElement('div');
-                stamp.className = 'stamp-mark';
-                stamp.textContent = 'スタンプ' + index;
-                cell.appendChild(stamp);
-                savedStamps.push('stamp' + index);
-                localStorage.setItem('stamps', JSON.stringify(savedStamps));
-              }
-            });
-            checkBingo();
-            closeModal();
-          }
-        },
-        errorMessage => console.warn(`読み取りエラー: ${errorMessage}`)
-      );
-    } catch (err) {
-      alert('カメラ起動エラー: ' + err);
+      await qrReader.stop();
+      await qrReader.clear();
+    } catch (e) {
+      console.warn("前回のQRリーダー解放時エラー:", e);
     }
+    qrReader = null;
   }
 
-  async function closeModal() {
-    const modal = document.getElementById('qr-modal');
-    modal.style.opacity = '0';
-    setTimeout(() => {
-      modal.classList.remove('show');
-      modal.style.opacity = '';
-      modal.style.display = 'none';
-    }, 400);
-
-    if (qrReader) {
-      try {
-        await qrReader.stop();
-        await qrReader.clear();
-      } catch (e) {
-        console.warn("QRリーダー停止時エラー:", e);
-      }
-      qrReader = null;
-    }
-  }
-
-  document.getElementById('reset-btn').addEventListener('click', () => {
-    if (confirm('本当に全てのスタンプを削除しますか？')) {
-      localStorage.removeItem('stamps');
-      alert('スタンプを全削除しました');
-      location.reload();
-    }
-  });
-
-  function checkBingo() {
-    const bingoPatterns = [
-      [1,2,3],[4,5,6],[7,8,9],
-      [1,4,7],[2,5,8],[3,6,9],
-      [1,5,9],[3,5,7]
-    ];
-    for (let pattern of bingoPatterns) {
-      if (pattern.every(num => savedStamps.includes('stamp' + num))) {
-        document.getElementById('complete-screen').style.display = 'block';
-        launchFireworks();
-        document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
-        if (qrReader) {
-          try {
-            await qrReader.stop();
-            await qrReader.clear();
-          } catch (e) {
-            console.warn("QRリーダー停止時エラー:", e);
-          }
-          qrReader = null;
+  qrReader = new Html5Qrcode("qr-reader");
+  try {
+    await qrReader.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 160 },
+      qrCodeMessage => {
+        if (/^stamp[1-9]$/.test(qrCodeMessage)) {
+          const index = parseInt(qrCodeMessage.replace('stamp',''));
+          const cells = document.querySelectorAll('.stamp-cell');
+          cells.forEach(cell => {
+            if (cell.textContent.includes('スタンプ' + index) && !cell.querySelector('.stamp-mark')) {
+              const stamp = document.createElement('div');
+              stamp.className = 'stamp-mark';
+              stamp.textContent = 'スタンプ' + index;
+              cell.appendChild(stamp);
+              const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
+              savedStamps.push('stamp' + index);
+              localStorage.setItem('stamps', JSON.stringify(savedStamps));
+            }
+          });
+          checkBingo();
+          closeModal();
         }
-        break;
+      },
+      errorMessage => console.warn(`読み取りエラー: ${errorMessage}`)
+    );
+  } catch (err) {
+    alert('カメラ起動エラー: ' + err);
+  }
+}
+
+async function closeModal() {
+  const modal = document.getElementById('qr-modal');
+  modal.style.opacity = '0';
+  setTimeout(() => {
+    modal.classList.remove('show');
+    modal.style.opacity = '';
+    modal.style.display = 'none';
+  }, 400);
+
+  if (qrReader) {
+    try {
+      await qrReader.stop();
+      await qrReader.clear();
+    } catch (e) {
+      console.warn("QRリーダー停止時エラー:", e);
+    }
+    qrReader = null;
+  }
+}
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (confirm('本当に全てのスタンプを削除しますか？')) {
+    localStorage.removeItem('stamps');
+    alert('スタンプを全削除しました');
+    location.reload();
+  }
+});
+
+function checkBingo() {
+  const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
+  const bingoPatterns = [
+    [1,2,3],[4,5,6],[7,8,9],
+    [1,4,7],[2,5,8],[3,6,9],
+    [1,5,9],[3,5,7]
+  ];
+  for (let pattern of bingoPatterns) {
+    if (pattern.every(num => savedStamps.includes('stamp' + num))) {
+      document.getElementById('complete-screen').style.display = 'block';
+      launchFireworks();
+      document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
+      if (qrReader) {
+        try {
+          qrReader.stop();
+          qrReader.clear();
+        } catch (e) {
+          console.warn("QRリーダー停止時エラー:", e);
+        }
+        qrReader = null;
       }
+      break;
     }
   }
-  checkBingo();
+}
 
-  function launchFireworks() {
-    const canvas = document.getElementById('fireworks');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    canvas.style.display = 'block';
+function launchFireworks() {
+  const canvas = document.getElementById('fireworks');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.display = 'block';
 
-    const particles = [];
-    function createFirework(x, y) {
-      for (let i = 0; i < 100; i++) {
-        particles.push({
-          x: x,
-          y: y,
-          angle: Math.random() * 2 * Math.PI,
-          speed: Math.random() * 5 + 2,
-          radius: Math.random() * 2 + 1,
-          color: `hsl(${Math.random() * 360}, 100%, 50%)`,
-          life: 100
-        });
-      }
-    }
-
-    function animate() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach((p, i) => {
-        p.x += Math.cos(p.angle) * p.speed;
-        p.y += Math.sin(p.angle) * p.speed;
-        p.life--;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.fill();
-        if (p.life <= 0) particles.splice(i, 1);
+  const particles = [];
+  function createFirework(x, y) {
+    for (let i = 0; i < 100; i++) {
+      particles.push({
+        x: x,
+        y: y,
+        angle: Math.random() * 2 * Math.PI,
+        speed: Math.random() * 5 + 2,
+        radius: Math.random() * 2 + 1,
+        color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+        life: 100
       });
-      if (particles.length > 0) requestAnimationFrame(animate);
     }
-
-    for (let i = 0; i < 5; i++) {
-      createFirework(Math.random() * canvas.width, Math.random() * canvas.height);
-    }
-    animate();
-
-    setTimeout(() => {
-      canvas.style.display = 'none';
-    }, 5000);
   }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach((p, i) => {
+      p.x += Math.cos(p.angle) * p.speed;
+      p.y += Math.sin(p.angle) * p.speed;
+      p.life--;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      if (p.life <= 0) particles.splice(i, 1);
+    });
+    if (particles.length > 0) requestAnimationFrame(animate);
+  }
+
+  for (let i = 0; i < 5; i++) {
+    createFirework(Math.random() * canvas.width, Math.random() * canvas.height);
+  }
+  animate();
+
+  setTimeout(() => {
+    canvas.style.display = 'none';
+  }, 5000);
+}
 </script>
 </body>
 </html>

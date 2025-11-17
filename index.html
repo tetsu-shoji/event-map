@@ -224,7 +224,15 @@
   async function openModal() {
     const modal = document.getElementById('qr-modal');
     modal.classList.add('show');
-    qrReader = new Html5Qrcode("qr-reader"); // 毎回新しいインスタンス
+
+    // 前回のインスタンスが残っていれば完全解放
+    if (qrReader) {
+      await qrReader.stop();
+      await qrReader.clear();
+      qrReader = null;
+    }
+
+    qrReader = new Html5Qrcode("qr-reader");
     try {
       await qrReader.start(
         { facingMode: "environment" },
@@ -262,7 +270,12 @@
       modal.style.opacity = '';
       modal.style.display = 'none';
     }, 400);
-    if (qrReader) await qrReader.stop();
+
+    if (qrReader) {
+      await qrReader.stop();
+      await qrReader.clear();
+      qrReader = null;
+    }
   }
 
   document.getElementById('reset-btn').addEventListener('click', () => {
@@ -284,7 +297,11 @@
         document.getElementById('complete-screen').style.display = 'block';
         launchFireworks();
         document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
-        if (qrReader) qrReader.stop();
+        if (qrReader) {
+          qrReader.stop();
+          qrReader.clear();
+          qrReader = null;
+        }
         break;
       }
     }

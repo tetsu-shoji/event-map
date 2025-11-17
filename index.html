@@ -52,7 +52,7 @@
     color: #fff;
     display:flex; align-items:center; justify-content:center;
     font-size: 0.8em; font-weight:bold;
-    animation: bounce 0.6s ease;
+    animation: bounce 0.6s ease; /* 弾むアニメーション */
   }
   @keyframes bounce {
     0% { transform: scale(0.5); opacity: 0; }
@@ -89,28 +89,6 @@
   }
   #reset-btn:hover {
     background-color:#c9302c;
-  }
-  /* 進捗バー */
-  .progress-container {
-    width: 90%;
-    margin: 10px auto;
-    background: #ddd;
-    border-radius: 8px;
-    overflow: hidden;
-    height: 20px;
-    position: relative;
-  }
-  .progress-bar {
-    height: 100%;
-    width: 0%;
-    background: #2e7d32;
-    transition: width 0.4s ease;
-  }
-  .progress-text {
-    text-align: center;
-    margin-top: 5px;
-    font-size: 0.9em;
-    font-weight: bold;
   }
   #complete-screen {
     display: none;
@@ -190,12 +168,6 @@
   <iframe src="https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F" loading="lazy"></iframe>
 </div>
 
-<!-- 進捗バー -->
-<div class="progress-container">
-  <div class="progress-bar" id="progress-bar"></div>
-</div>
-<div class="progress-text" id="progress-text">達成率: 0%</div>
-
 <!-- スタンプ -->
 <div class="stamp-container" id="stampContainer"></div>
 
@@ -252,13 +224,11 @@
     container.appendChild(cell);
   }
 
-  updateProgress();
-
   let qrReader;
 
   async function openModal() {
     const modal = document.getElementById('qr-modal');
-    modal.classList.add('show');
+    modal.classList.add('show'); // フェードイン
     if (!qrReader) qrReader = new Html5Qrcode("qr-reader");
     try {
       await qrReader.start(
@@ -276,8 +246,7 @@
                 cell.appendChild(stamp);
                 savedStamps.push('stamp' + index);
                 localStorage.setItem('stamps', JSON.stringify(savedStamps));
-                document.getElementById('stamp-sound').play();
-                updateProgress();
+                document.getElementById('stamp-sound').play(); // 音声
               }
             });
             checkBingo();
@@ -293,7 +262,7 @@
 
   async function closeModal() {
     const modal = document.getElementById('qr-modal');
-    modal.style.opacity = '0';
+    modal.style.opacity = '0'; // フェードアウト
     setTimeout(() => {
       modal.classList.remove('show');
       modal.style.opacity = '';
@@ -309,12 +278,6 @@
       location.reload();
     }
   });
-
-  function updateProgress() {
-    const progress = (savedStamps.length / 9) * 100;
-    document.getElementById('progress-bar').style.width = progress + '%';
-    document.getElementById('progress-text').textContent = savedStamps.length === 9 ? '達成率: 100% (ビンゴ達成!)' : `達成率: ${Math.floor(progress)}%`;
-  }
 
   function checkBingo() {
     const bingoPatterns = [
@@ -335,6 +298,7 @@
   }
   checkBingo();
 
+  // 花火アニメーション
   function launchFireworks() {
     const canvas = document.getElementById('fireworks');
     const ctx = canvas.getContext('2d');
@@ -383,3 +347,8 @@
   }
 
   function playFanfare() {
+    document.getElementById('fanfare').play();
+  }
+</script>
+</body>
+</html>

@@ -152,14 +152,6 @@
   #form-btn:hover {
     background-color: #3b5c87;
   }
-  /* 紙吹雪用 */
-  .confetti {
-    position: fixed;
-    width: 8px;
-    height: 14px;
-    z-index: 9999;
-    pointer-events: none;
-  }
 </style>
 </head>
 <body>
@@ -199,7 +191,6 @@
 
 <!-- 音声 -->
 <audio id="fanfare" src="https://www.soundjay.com/button/sounds/button-09.mp3" preload="auto"></audio>
-<audio id="cracker-sound" src="https://www.soundjay.com/button/sounds/button-16.mp3" preload="auto"></audio>
 
 <!-- QRコードライブラリ -->
 <script src="https://unpkg.com/html5-qrcode"></script>
@@ -294,7 +285,6 @@ function checkBingo() {
       document.getElementById('complete-screen').style.display = 'block';
       document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
       playFanfare();
-      launchConfetti(); // クラッカー演出
       break;
     }
   }
@@ -302,41 +292,6 @@ function checkBingo() {
 
 function playFanfare() {
   document.getElementById('fanfare').play();
-  document.getElementById('cracker-sound').play();
-}
-
-// 紙吹雪アニメーション
-function launchConfetti() {
-  const duration = 3000;
-  const end = Date.now() + duration;
-  const colors = ['#ff0', '#f00', '#0f0', '#00f', '#ff69b4', '#ffa500'];
-
-  (function frame() {
-    for (let i = 0; i < 10; i++) {
-      const confetti = document.createElement('div');
-      confetti.className = 'confetti';
-      confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-      confetti.style.left = Math.random() * window.innerWidth + 'px';
-      confetti.style.top = '-10px';
-      document.body.appendChild(confetti);
-
-      const fallDuration = 3000;
-      const start = Date.now();
-      (function drop() {
-        const progress = (Date.now() - start) / fallDuration;
-        confetti.style.top = progress * window.innerHeight + 'px';
-        confetti.style.transform = `rotate(${progress * 360}deg)`;
-        if (progress < 1) {
-          requestAnimationFrame(drop);
-        } else {
-          confetti.remove();
-        }
-      })();
-    }
-    if (Date.now() < end) {
-      requestAnimationFrame(frame);
-    }
-  })();
 }
 </script>
 </body>

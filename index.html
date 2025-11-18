@@ -12,17 +12,6 @@
     padding: 0;
     color: #333;
   }
-  .map-container {
-    width: 100%;
-    height: 45vh;
-    margin-bottom: 10px;
-  }
-  iframe {
-    width: 100%;
-    height: 100%;
-    border: 0;
-    border-radius: 8px;
-  }
   .stamp-container {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -42,16 +31,17 @@
     justify-content: center;
     overflow: hidden;
   }
-  .stamp-mark img {
-    width: 90%;
+  .stamp-mark svg, .stamp-mark span {
+    width: 80%;
     height: auto;
-    filter: grayscale(100%) brightness(0.3) sepia(1) hue-rotate(180deg) saturate(5);
-    animation: bounce 0.6s ease;
+    stroke: #4a6fa5;
+    fill: none;
+    stroke-width: 3;
   }
-  @keyframes bounce {
-    0% { transform: scale(0.5); opacity: 0; }
-    50% { transform: scale(1.2); opacity: 1; }
-    100% { transform: scale(1); }
+  .stamp-mark span {
+    font-size: 14px;
+    color: #4a6fa5;
+    font-weight: bold;
   }
   .btn-container {
     text-align: center;
@@ -84,32 +74,6 @@
   #reset-btn:hover {
     background-color:#4a6fa5;
   }
-  #qr-modal {
-    display:none;
-    position:fixed;
-    top:0; left:0;
-    width:100%; height:100%;
-    background:rgba(0,0,0,0.5);
-    z-index:999;
-    align-items:center;
-    justify-content:center;
-  }
-  .modal-content {
-    width:300px;
-    height:360px;
-    background:#fff;
-    margin:auto;
-    padding:10px;
-    border-radius:8px;
-    text-align:center;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-  }
-  #qr-reader {
-    width:180px;
-    margin:auto;
-  }
   #complete-screen {
     display:none;
     text-align:center;
@@ -134,25 +98,9 @@
   #form-btn:hover {
     background-color: #3b5c87;
   }
-  .confetti {
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    background-color: #ffcc00;
-    animation: fall 2s linear infinite;
-  }
-  @keyframes fall {
-    0% { transform: translateY(0); opacity: 1; }
-    100% { transform: translateY(500px); opacity: 0; }
-  }
 </style>
 </head>
 <body>
-
-<!-- Googleマップ -->
-<div class="map-container">
-  <iframe src="https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F" loading="lazy"></iframe>
-</div>
 
 <!-- スタンプ -->
 <div class="stamp-container" id="stampContainer"></div>
@@ -163,43 +111,28 @@
   <button id="reset-btn">全削除</button>
 </div>
 
-<!-- モーダル -->
-<div id="qr-modal">
-  <div class="modal-content">
-    <h3>QRコード読み取り</h3>
-    <div id="qr-reader"></div>
-    <button onclick="closeModal()" style="background-color:#4a6fa5;color:white;padding:10px;border:none;border-radius:6px;">閉じる</button>
-  </div>
-</div>
-
 <!-- 完了画面 -->
 <div id="complete-screen">
   <h2>🎉 ビンゴ達成！おめでとうございます 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
   <button id="form-btn" onclick="window.open('https://forms.office.com/r/sn3wvtS6Yy','_blank')">応募フォームへ</button>
-  <p>※送信後、この画面を受付で提示してください。</p>
 </div>
-
-<!-- 音声（クラッカー音） -->
-<audio id="fanfare" src="https://www.soundjay.com/button/sounds/button-09.mp3" preload="auto"></audio>
-
-<!-- QRコードライブラリ -->
-<script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
   const container = document.getElementById('stampContainer');
-  const stampImages = [
-    'https://cdn-icons-png.flaticon.com/512/616/616408.png', // 犬
-    'https://cdn-icons-png.flaticon.com/512/616/616430.png', // 猫
-    'https://cdn-icons-png.flaticon.com/512/616/616554.png', // 車
-    'https://cdn-icons-png.flaticon.com/512/616/616485.png', // 鳥
-    'https://cdn-icons-png.flaticon.com/512/616/616490.png', // 魚
-    'https://cdn-icons-png.flaticon.com/512/616/616495.png', // バス
-    'https://cdn-icons-png.flaticon.com/512/616/616500.png', // 飛行機
-    'https://cdn-icons-png.flaticon.com/512/616/616505.png', // うさぎ
-    'https://cdn-icons-png.flaticon.com/512/616/616510.png'  // くま
+
+  const stampSVGs = [
+    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><path d="M16 40h32M20 24h24"/></svg>`, // 車
+    `<svg viewBox="0 0 64 64"><rect x="12" y="20" width="40" height="24"/><line x1="12" y1="44" x2="52" y2="44"/></svg>`, // 電車
+    `<svg viewBox="0 0 64 64"><path d="M8 40h48l-8-16H16z"/><circle cx="20" cy="44" r="4"/><circle cx="44" cy="44" r="4"/></svg>`, // 船
+    `<svg viewBox="0 0 64 64"><path d="M8 32l24-16 24 16-24 16z"/><line x1="32" y1="16" x2="32" y2="48"/></svg>`, // 飛行機
+    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="24" cy="28" r="4"/><circle cx="40" cy="28" r="4"/><path d="M20 40c8 4 16 4 24 0"/></svg>`, // 犬
+    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="24" cy="28" r="4"/><circle cx="40" cy="28" r="4"/><path d="M16 40c8 6 24 6 32 0"/></svg>`, // 猫
+    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="24" cy="28" r="4"/><circle cx="40" cy="28" r="4"/><path d="M20 44c8 4 16 4 24 0"/></svg>`, // パンダ
+    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="24" cy="28" r="4"/><circle cx="40" cy="28" r="4"/><path d="M18 42c10 6 18 6 28 0"/></svg>`, // 猿
+    `<span>ShiomiX</span>` // テキスト
   ];
 
   for (let i = 1; i <= 9; i++) {
@@ -208,118 +141,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedStamps.includes('stamp' + i)) {
       const stamp = document.createElement('div');
       stamp.className = 'stamp-mark';
-      const img = document.createElement('img');
-      img.src = stampImages[i-1];
-      stamp.appendChild(img);
+      stamp.innerHTML = stampSVGs[i-1];
       cell.appendChild(stamp);
     }
     container.appendChild(cell);
   }
 });
-
-let qrReader;
-
-async function openModal() {
-  document.getElementById('qr-modal').style.display = 'flex';
-  if (qrReader) {
-    await qrReader.stop();
-    await qrReader.clear();
-    qrReader = null;
-  }
-  qrReader = new Html5Qrcode("qr-reader");
-  try {
-    await qrReader.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 160 },
-      qrCodeMessage => {
-        if (/^stamp[1-9]$/.test(qrCodeMessage)) {
-          const index = parseInt(qrCodeMessage.replace('stamp',''));
-          const cells = document.querySelectorAll('.stamp-cell');
-          cells.forEach((cell, idx) => {
-            if (idx === index-1 && !cell.querySelector('.stamp-mark')) {
-              const stamp = document.createElement('div');
-              stamp.className = 'stamp-mark';
-              const img = document.createElement('img');
-              img.src = [
-                'https://cdn-icons-png.flaticon.com/512/616/616408.png',
-                'https://cdn-icons-png.flaticon.com/512/616/616430.png',
-                'https://cdn-icons-png.flaticon.com/512/616/616554.png',
-                'https://cdn-icons-png.flaticon.com/512/616/616485.png',
-                'https://cdn-icons-png.flaticon.com/512/616/616490.png',
-                'https://cdn-icons-png.flaticon.com/512/616/616495.png',
-                'https://cdn-icons-png.flaticon.com/512/616/616500.png',
-                'https://cdn-icons-png.flaticon.com/512/616/616505.png',
-                'https://cdn-icons-png.flaticon.com/512/616/616510.png'
-              ][index-1];
-              stamp.appendChild(img);
-              cell.appendChild(stamp);
-              const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
-              savedStamps.push('stamp' + index);
-              localStorage.setItem('stamps', JSON.stringify(savedStamps));
-            }
-          });
-          checkBingo();
-          closeModal();
-        }
-      }
-    );
-  } catch (err) {
-    alert('カメラ起動エラー: ' + err);
-  }
-}
-
-async function closeModal() {
-  document.getElementById('qr-modal').style.display = 'none';
-  if (qrReader) {
-    await qrReader.stop();
-    await qrReader.clear();
-    qrReader = null;
-  }
-}
-
-document.getElementById('reset-btn').addEventListener('click', () => {
-  if (confirm('本当に全てのスタンプを削除しますか？')) {
-    localStorage.removeItem('stamps');
-    alert('スタンプを全削除しました');
-    location.reload();
-  }
-});
-
-function checkBingo() {
-  const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
-  const bingoPatterns = [
-    [1,2,3],[4,5,6],[7,8,9],
-    [1,4,7],[2,5,8],[3,6,9],
-    [1,5,9],[3,5,7]
-  ];
-  for (let pattern of bingoPatterns) {
-    if (pattern.every(num => savedStamps.includes('stamp' + num))) {
-      document.getElementById('complete-screen').style.display = 'block';
-      document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
-      launchConfetti();
-      playFanfare();
-      break;
-    }
-  }
-}
-
-function launchConfetti() {
-  const colors = ['#4a6fa5','#6c8ebf','#99b3d7','#ffcc00'];
-  for (let i = 0; i < 100; i++) {
-    const confetti = document.createElement('div');
-    confetti.className = 'confetti';
-    confetti.style.backgroundColor = colors[Math.floor(Math.random()*colors.length)];
-    confetti.style.left = Math.random()*window.innerWidth + 'px';
-    confetti.style.top = '-10px';
-    confetti.style.animationDuration = (Math.random()*2+1)+'s';
-    document.body.appendChild(confetti);
-    setTimeout(() => confetti.remove(), 3000);
-  }
-}
-
-function playFanfare() {
-  document.getElementById('fanfare').play();
-}
 </script>
 </body>
 </html>

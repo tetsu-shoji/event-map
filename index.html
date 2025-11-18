@@ -7,10 +7,21 @@
 <style>
   body {
     font-family: 'Segoe UI', sans-serif;
-    background: #f0f4f8;
+    background: #f0f4f8; /* 落ち着いたブルー系背景 */
     margin: 0;
     padding: 0;
     color: #333;
+  }
+  .map-container {
+    width: 100%;
+    height: 45vh;
+    margin-bottom: 10px;
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 8px;
   }
   .stamp-container {
     display: grid;
@@ -24,24 +35,33 @@
     height: 90px;
     position: relative;
     background: #fff;
-    border: 3px solid #4a6fa5;
+    border: 3px solid #4a6fa5; /* くすみブルー */
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    font-size: 0.8em;
+    color: #999;
   }
-  .stamp-mark svg, .stamp-mark span {
-    width: 80%;
-    height: auto;
-    stroke: #4a6fa5;
-    fill: none;
-    stroke-width: 3;
+  .stamp-mark {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background-color: #f0f4f8; /* 背景は淡いブルー */
+    color: #4a6fa5; /* 文字はくすみブルー */
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size: 1em;
+    font-weight:bold;
+    animation: bounce 0.6s ease;
   }
-  .stamp-mark span {
-    font-size: 14px;
-    color: #4a6fa5;
-    font-weight: bold;
+  @keyframes bounce {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); }
   }
   .btn-container {
     text-align: center;
@@ -74,6 +94,32 @@
   #reset-btn:hover {
     background-color:#4a6fa5;
   }
+  #qr-modal {
+    display:none;
+    position:fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:rgba(0,0,0,0.5);
+    z-index:999;
+    align-items:center;
+    justify-content:center;
+  }
+  .modal-content {
+    width:300px;
+    height:360px;
+    background:#fff;
+    margin:auto;
+    padding:10px;
+    border-radius:8px;
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+  }
+  #qr-reader {
+    width:180px;
+    margin:auto;
+  }
   #complete-screen {
     display:none;
     text-align:center;
@@ -102,6 +148,11 @@
 </head>
 <body>
 
+<!-- Googleマップ -->
+<div class="map-container">
+  <iframe src="https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F" loading="lazy"></iframe>
+</div>
+
 <!-- スタンプ -->
 <div class="stamp-container" id="stampContainer"></div>
 
@@ -111,29 +162,33 @@
   <button id="reset-btn">全削除</button>
 </div>
 
+<!-- モーダル -->
+<div id="qr-modal">
+  <div class="modal-content">
+    <h3>QRコード読み取り</h3>
+    <div id="qr-reader"></div>
+    <button onclick="closeModal()" style="background-color:#4a6fa5;color:white;padding:10px;border:none;border-radius:6px;">閉じる</button>
+  </div>
+</div>
+
 <!-- 完了画面 -->
 <div id="complete-screen">
   <h2>🎉 ビンゴ達成！おめでとうございます 🎉</h2>
   <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
   <button id="form-btn" onclick="window.open('https://forms.office.com/r/sn3wvtS6Yy','_blank')">応募フォームへ</button>
+  <p>※送信後、この画面を受付で提示してください。</p>
 </div>
+
+<!-- 音声 -->
+<audio id="fanfare" src="https://www.soundjay.com/button/sounds/button-09.mp3" preload="auto"></audio>
+
+<!-- QRコードライブラリ -->
+<script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
   const container = document.getElementById('stampContainer');
-
-  const stampSVGs = [
-    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><path d="M16 40h32M20 24h24"/></svg>`, // 車
-    `<svg viewBox="0 0 64 64"><rect x="12" y="20" width="40" height="24"/><line x1="12" y1="44" x2="52" y2="44"/></svg>`, // 電車
-    `<svg viewBox="0 0 64 64"><path d="M8 40h48l-8-16H16z"/><circle cx="20" cy="44" r="4"/><circle cx="44" cy="44" r="4"/></svg>`, // 船
-    `<svg viewBox="0 0 64 64"><path d="M8 32l24-16 24 16-24 16z"/><line x1="32" y1="16" x2="32" y2="48"/></svg>`, // 飛行機
-    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="24" cy="28" r="4"/><circle cx="40" cy="28" r="4"/><path d="M20 40c8 4 16 4 24 0"/></svg>`, // 犬
-    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="24" cy="28" r="4"/><circle cx="40" cy="28" r="4"/><path d="M16 40c8 6 24 6 32 0"/></svg>`, // 猫
-    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="24" cy="28" r="4"/><circle cx="40" cy="28" r="4"/><path d="M20 44c8 4 16 4 24 0"/></svg>`, // パンダ
-    `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="24" cy="28" r="4"/><circle cx="40" cy="28" r="4"/><path d="M18 42c10 6 18 6 28 0"/></svg>`, // 猿
-    `<span>ShiomiX</span>` // テキスト
-  ];
 
   for (let i = 1; i <= 9; i++) {
     const cell = document.createElement('div');
@@ -141,12 +196,89 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedStamps.includes('stamp' + i)) {
       const stamp = document.createElement('div');
       stamp.className = 'stamp-mark';
-      stamp.innerHTML = stampSVGs[i-1];
+      stamp.textContent = 'ShiomiX'; // 押された時の文字
       cell.appendChild(stamp);
     }
     container.appendChild(cell);
   }
 });
+
+let qrReader;
+
+async function openModal() {
+  document.getElementById('qr-modal').style.display = 'flex';
+  if (qrReader) {
+    await qrReader.stop();
+    await qrReader.clear();
+    qrReader = null;
+  }
+  qrReader = new Html5Qrcode("qr-reader");
+  try {
+    await qrReader.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 160 },
+      qrCodeMessage => {
+        if (/^stamp[1-9]$/.test(qrCodeMessage)) {
+          const index = parseInt(qrCodeMessage.replace('stamp',''));
+          const cells = document.querySelectorAll('.stamp-cell');
+          cells.forEach((cell, idx) => {
+            if (idx === index-1 && !cell.querySelector('.stamp-mark')) {
+              const stamp = document.createElement('div');
+              stamp.className = 'stamp-mark';
+              stamp.textContent = 'ShiomiX';
+              cell.appendChild(stamp);
+              const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
+              savedStamps.push('stamp' + index);
+              localStorage.setItem('stamps', JSON.stringify(savedStamps));
+            }
+          });
+          checkBingo();
+          closeModal();
+        }
+      }
+    );
+  } catch (err) {
+    alert('カメラ起動エラー: ' + err);
+  }
+}
+
+async function closeModal() {
+  document.getElementById('qr-modal').style.display = 'none';
+  if (qrReader) {
+    await qrReader.stop();
+    await qrReader.clear();
+    qrReader = null;
+  }
+}
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (confirm('本当に全てのスタンプを削除しますか？')) {
+    localStorage.removeItem('stamps');
+    alert('スタンプを全削除しました');
+    location.reload();
+  }
+});
+
+function checkBingo() {
+  const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
+  const bingoPatterns = [
+    [1,2,3],[4,5,6],[7,8,9],
+    [1,4,7],[2,5,8],[3,6,9],
+    [1,5,9],[3,5,7]
+  ];
+  for (let pattern of bingoPatterns) {
+    if (pattern.every(num => savedStamps.includes('stamp' + num))) {
+      document.getElementById('complete-screen').style.display = 'block';
+      document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
+      playFanfare();
+      break;
+    }
+  }
+}
+
+function playFanfare() {
+  document.getElementById('fanfare').play();
+}
 </script>
 </body>
 </html>

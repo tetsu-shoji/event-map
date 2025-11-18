@@ -7,7 +7,7 @@
 <style>
   body {
     font-family: 'Segoe UI', sans-serif;
-    background: #e6f2ff; /* 水色ベース */
+    background: #e6f2ff;
     margin: 0;
     padding: 0;
     color: #333;
@@ -43,16 +43,12 @@
     font-size: 0.8em;
     color: #3399ff;
     font-weight: bold;
+    overflow: hidden;
   }
-  .stamp-mark {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+  .stamp-mark img {
+    width: 70%;
+    height: auto;
     border-radius: 50%;
-    background-color: #007bff;
-    color: #fff;
-    display:flex; align-items:center; justify-content:center;
-    font-size: 0.9em; font-weight:bold;
     animation: bounce 0.6s ease;
   }
   @keyframes bounce {
@@ -149,6 +145,17 @@
     z-index:9999;
     display:none;
   }
+  .confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background-color: #ffcc00;
+    animation: fall 2s linear infinite;
+  }
+  @keyframes fall {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(500px); opacity: 0; }
+  }
 </style>
 </head>
 <body>
@@ -187,8 +194,8 @@
 <!-- 花火Canvas -->
 <canvas id="fireworks"></canvas>
 
-<!-- 音声 -->
-<audio id="fanfare" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" preload="auto"></audio>
+<!-- 音声（クラッカー音） -->
+<audio id="fanfare" src="https://www.soundjay.com/button/sounds/button-09.mp3" preload="auto"></audio>
 
 <!-- QRコードライブラリ -->
 <script src="https://unpkg.com/html5-qrcode"></script>
@@ -197,6 +204,18 @@
 document.addEventListener('DOMContentLoaded', () => {
   const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
   const container = document.getElementById('stampContainer');
+  const stampImages = [
+    'https://cdn-icons-png.flaticon.com/512/616/616408.png', // 犬
+    'https://cdn-icons-png.flaticon.com/512/616/616430.png', // 猫
+    'https://cdn-icons-png.flaticon.com/512/616/616554.png', // 車
+    'https://cdn-icons-png.flaticon.com/512/616/616485.png', // 鳥
+    'https://cdn-icons-png.flaticon.com/512/616/616490.png', // 魚
+    'https://cdn-icons-png.flaticon.com/512/616/616495.png', // バス
+    'https://cdn-icons-png.flaticon.com/512/616/616500.png', // 飛行機
+    'https://cdn-icons-png.flaticon.com/512/616/616505.png', // うさぎ
+    'https://cdn-icons-png.flaticon.com/512/616/616510.png'  // くま
+  ];
+
   for (let i = 1; i <= 9; i++) {
     const cell = document.createElement('div');
     cell.className = 'stamp-cell';
@@ -206,7 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedStamps.includes('stamp' + i)) {
       const stamp = document.createElement('div');
       stamp.className = 'stamp-mark';
-      stamp.textContent = 'スタンプ' + i;
+      const img = document.createElement('img');
+      img.src = stampImages[i-1];
+      stamp.appendChild(img);
       cell.appendChild(stamp);
     }
     container.appendChild(cell);
@@ -231,11 +252,23 @@ async function openModal() {
         if (/^stamp[1-9]$/.test(qrCodeMessage)) {
           const index = parseInt(qrCodeMessage.replace('stamp',''));
           const cells = document.querySelectorAll('.stamp-cell');
-          cells.forEach(cell => {
-            if (cell.textContent.includes('スタンプ' + index) && !cell.querySelector('.stamp-mark')) {
+          cells.forEach((cell, idx) => {
+            if (idx === index-1 && !cell.querySelector('.stamp-mark')) {
               const stamp = document.createElement('div');
               stamp.className = 'stamp-mark';
-              stamp.textContent = 'スタンプ' + index;
+              const img = document.createElement('img');
+              img.src = [
+                'https://cdn-icons-png.flaticon.com/512/616/616408.png',
+                'https://cdn-icons-png.flaticon.com/512/616/616430.png',
+                'https://cdn-icons-png.flaticon.com/512/616/616554.png',
+                'https://cdn-icons-png.flaticon.com/512/616/616485.png',
+                'https://cdn-icons-png.flaticon.com/512/616/616490.png',
+                'https://cdn-icons-png.flaticon.com/512/616/616495.png',
+                'https://cdn-icons-png.flaticon.com/512/616/616500.png',
+                'https://cdn-icons-png.flaticon.com/512/616/616505.png',
+                'https://cdn-icons-png.flaticon.com/512/616/616510.png'
+              ][index-1];
+              stamp.appendChild(img);
               cell.appendChild(stamp);
               const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
               savedStamps.push('stamp' + index);
@@ -280,58 +313,25 @@ function checkBingo() {
     if (pattern.every(num => savedStamps.includes('stamp' + num))) {
       document.getElementById('complete-screen').style.display = 'block';
       document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
-      launchFireworks();
+      launchConfetti();
       playFanfare();
       break;
     }
   }
 }
 
-function launchFireworks() {
+function launchConfetti() {
   const canvas = document.getElementById('fireworks');
-  const ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
   canvas.style.display = 'block';
-
-  const particles = [];
-  function createFirework(x, y) {
-    for (let i = 0; i < 100; i++) {
-      particles.push({
-        x: x,
-        y: y,
-        angle: Math.random() * 2 * Math.PI,
-        speed: Math.random() * 5 + 2,
-        radius: Math.random() * 2 + 1,
-        color: `hsl(${Math.random() * 360}, 100%, 50%)`,
-        life: 100
-      });
-    }
+  const colors = ['#ffcc00','#ff6666','#66ccff','#66ff66'];
+  for (let i = 0; i < 100; i++) {
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti';
+    confetti.style.backgroundColor = colors[Math.floor(Math.random()*colors.length)];
+    confetti.style.left = Math.random()*window.innerWidth + 'px';
+    confetti.style.top = '-10px';
+    confetti.style.animationeout(() => confetti.remove(), 3000);
   }
-
-  function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    particles.forEach((p, i) => {
-      p.x += Math.cos(p.angle) * p.speed;
-      p.y += Math.sin(p.angle) * p.speed;
-      p.life--;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fillStyle = p.color;
-      ctx.fill();
-      if (p.life <= 0) particles.splice(i, 1);
-    });
-    if (particles.length > 0) requestAnimationFrame(animate);
-  }
-
-  for (let i = 0; i < 5; i++) {
-    createFirework(Math.random() * canvas.width, Math.random() * canvas.height);
-  }
-  animate();
-
-  setTimeout(() => {
-    canvas.style.display = 'none';
-  }, 5000);
 }
 
 function playFanfare() {

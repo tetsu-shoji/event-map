@@ -1,52 +1,31 @@
 
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<title>ピースサインでメッセージ送信</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #f0f4f8; }
-  video { width: 300px; border-radius: 8px; margin-top: 10px; }
-  #status { margin-top: 10px; font-weight: bold; color: #333; }
-</style>
-</head>
-<body>
-<h1>ピースサインで「ピース」送信</h1>
-<video id="camera" autoplay playsinline></video>
-<p id="status">カメラ起動中...</p>
-
-<!-- MediaPipe & LIFF SDK -->
-https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js</script>
-https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js</script>
-https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js</script>
-https://static.line-scdn.net/liff/edge/2/sdk.js</script>
+<!-- 必要なライブラリ -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
 const video = document.getElementById('camera');
 const statusText = document.getElementById('status');
-let sent = false; // 二重送信防止
+let sent = false;
 
-// ✅ LIFF初期化
 async function initLIFF() {
-  await liff.init({ liffId: "YOUR_LIFF_ID" }); // ←既存のLIFF IDを設定
-  if (!liff.isLoggedIn()) {
-    liff.login();
-  }
+  await liff.init({ liffId: "YOUR_LIFF_ID" });
+  if (!liff.isLoggedIn()) liff.login();
 }
 initLIFF();
 
-// ✅ カメラ起動
 navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
   video.srcObject = stream;
 });
 
-// ✅ MediaPipe Hands設定
 const hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
 hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
 hands.onResults(results => {
   if (results.multiHandLandmarks.length > 0 && !sent) {
     const landmarks = results.multiHandLandmarks[0];
+    console.log("ランドマーク:", landmarks); // デバッグ用
     if (checkPeaceSign(landmarks)) {
       sendPeaceMessage();
     }
@@ -59,29 +38,20 @@ const camera = new Camera(video, {
 });
 camera.start();
 
-// ✅ ピースサイン判定
 function checkPeaceSign(landmarks) {
   const indexUp = landmarks[8].y < landmarks[6].y;
   const middleUp = landmarks[12].y < landmarks[10].y;
-  const ringDown = landmarks[16].y > landmarks[14].y;
-  const pinkyDown = landmarks[20].y > landmarks[18].y;
-  return indexUp && middleUp && ringDown && pinkyDown;
+  return indexUp && middleUp; // 条件を緩める
 }
 
-// ✅ 「ピース」メッセージ送信
 async function sendPeaceMessage() {
-  statusText.textContent = "📸 ピースサイン検出 → メッセージ送信中...";
+  statusText.textContent = "📸 ピース検出 → メッセージ送信中...";
   sent = true;
   try {
-    await liff.sendMessages([{
-      type: "text",
-      text: "ピース"
-    }]);
+    await liff.sendMessages([{ type: "text", text: "ピース" }]);
     statusText.textContent = "✅ LINEに「ピース」を送信しました！";
   } catch (err) {
     statusText.textContent = "❌ 送信エラー: " + err;
   }
 }
 </script>
-</body>
-</html>

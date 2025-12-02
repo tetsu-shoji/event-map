@@ -1,4 +1,21 @@
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ピースサインでLINE送信</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #f0f4f8; }
+  video { width: 300px; border-radius: 8px; margin-top: 10px; }
+  #status { margin-top: 10px; font-weight: bold; color: #333; }
+</style>
+</head>
+<body>
+<h1>ピースサインで「ピース」送信</h1>
+<video id="camera" autoplay playsinline></video>
+<p id="status">カメラ起動中...</p>
+
 <!-- 必要なライブラリ -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -8,20 +25,43 @@
 <script>
 const video = document.getElementById('camera');
 const statusText = document.getElementById('status');
-let sent = false;
+let sent = false; // 二重送信防止
 
+// ✅ LIFF初期化
 async function initLIFF() {
-  await liff.init({ liffId: "YOUR_LIFF_ID" });
-  if (!liff.isLoggedIn()) liff.login();
+  try {
+    await liff.init({ liffId: "YOUR_LIFF_ID" }); // ←ここに既存のLIFF IDを設定
+    if (!liff.isLoggedIn()) {
+      liff.login();
+    }
+    console.log("LIFF初期化成功");
+  } catch (err) {
+    statusText.textContent = "❌ LIFF初期化エラー: " + err.message;
+  }
 }
 initLIFF();
 
-navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-  video.srcObject = stream;
-});
+// ✅ カメラ起動（エラー処理付き）
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    statusText.textContent = "✅ カメラ起動成功";
+  } catch (err) {
+    console.error("カメラ起動エラー:", err);
+    statusText.textContent = "❌ カメラ起動エラー: " + err.message + "（HTTPSと権限を確認）";
+  }
+}
+startCamera();
 
+// ✅ MediaPipe Hands設定
 const hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.7,
+  minTrackingConfidence: 0.7
+});
 hands.onResults(results => {
   if (results.multiHandLandmarks.length > 0 && !sent) {
     const landmarks = results.multiHandLandmarks[0];
@@ -32,18 +72,24 @@ hands.onResults(results => {
   }
 });
 
+// ✅ カメラ映像をMediaPipeに渡す
 const camera = new Camera(video, {
-  onFrame: async () => { await hands.send({ image: video }); },
-  width: 300, height: 300
+  onFrame: async () => {
+    await hands.send({ image: video });
+  },
+  width: 300,
+  height: 300
 });
 camera.start();
 
+// ✅ ピースサイン判定（条件を緩める）
 function checkPeaceSign(landmarks) {
   const indexUp = landmarks[8].y < landmarks[6].y;
   const middleUp = landmarks[12].y < landmarks[10].y;
-  return indexUp && middleUp; // 条件を緩める
+  return indexUp && middleUp; // 人差し指と中指が上がっていればOK
 }
 
+// ✅ 「ピース」メッセージ送信
 async function sendPeaceMessage() {
   statusText.textContent = "📸 ピース検出 → メッセージ送信中...";
   sent = true;
@@ -51,7 +97,9 @@ async function sendPeaceMessage() {
     await liff.sendMessages([{ type: "text", text: "ピース" }]);
     statusText.textContent = "✅ LINEに「ピース」を送信しました！";
   } catch (err) {
-    statusText.textContent = "❌ 送信エラー: " + err;
+    statusText.textContent = "❌ 送信エラー: " + err.message;
   }
 }
 </script>
+</body>
+</html>

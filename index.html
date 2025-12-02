@@ -27,12 +27,12 @@ const video = document.getElementById('camera');
 const statusText = document.getElementById('status');
 let sent = false; // 二重送信防止
 
-// ✅ LIFF初期化
+// ✅ LIFF初期化＋権限付きログイン
 async function initLIFF() {
   try {
     await liff.init({ liffId: "YOUR_LIFF_ID" }); // ←ここに既存のLIFF IDを設定
     if (!liff.isLoggedIn()) {
-      liff.login();
+      liff.login({ scope: ['chat_message.write'] }); // メッセージ送信権限を要求
     }
     console.log("LIFF初期化成功");
   } catch (err) {

@@ -1,297 +1,97 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>ShiomiXビンゴ</title>
+<title>ピースサインで自動撮影＆LINE送信</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  body {
-    font-family: 'Segoe UI', sans-serif;
-    background: #f0f4f8;
-    margin: 0;
-    padding: 0;
-    color: #333;
-  }
-  h1 {
-    font-size: 2em;
-    color: #00aaff;
-    text-align: center;
-    margin: 10px 0;
-  }
-  /* マップ表示 */
-  .map-container {
-    width: 100%;
-    height: 45vh;
-    margin-bottom: 16px;
-  }
-  .map-container iframe {
-    width: 100%;
-    height: 100%;
-    border: 0;
-    border-radius: 8px;
-  }
-  .stamp-container {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    justify-items: center;
-    padding: 16px;
-  }
-  .stamp-cell {
-    width: 90px;
-    height: 90px;
-    position: relative;
-    background: #fff;
-    border: 3px solid #4a6fa5;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.9em;
-    color: #4a6fa5;
-    font-weight: bold;
-    overflow: hidden;
-  }
-  .stamp-mark {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    border-radius: 50%;
-    background-color: #4a6fa5;
-    color: #fff;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size: 1em;
-    font-weight:bold;
-    animation: bounce 0.6s ease;
-  }
-  @keyframes bounce {
-    0% { transform: scale(0.5); opacity: 0; }
-    50% { transform: scale(1.2); opacity: 1; }
-    100% { transform: scale(1); }
-  }
-  .btn-container {
-    text-align: center;
-    padding: 16px;
-  }
-  #qr-btn {
-    padding: 14px;
-    background-color: #4a6fa5;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 1em;
-    cursor: pointer;
-    width: 90%;
-    margin-bottom: 12px;
-  }
-  #qr-btn:hover {
-    background-color: #3b5c87;
-  }
-  #reset-btn {
-    padding: 10px 16px;
-    background-color:#6c8ebf;
-    color:white;
-    border:none;
-    border-radius:6px;
-    font-size:0.9em;
-    cursor:pointer;
-    width:40%;
-  }
-  #reset-btn:hover {
-    background-color:#4a6fa5;
-  }
-  #qr-modal {
-    display:none;
-    position:fixed;
-    top:0; left:0;
-    width:100%; height:100%;
-    background:rgba(0,0,0,0.5);
-    z-index:999;
-    align-items:center;
-    justify-content:center;
-  }
-  .modal-content {
-    width:300px;
-    height:360px;
-    background:#fff;
-    margin:auto;
-    padding:10px;
-    border-radius:8px;
-    text-align:center;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-  }
-  #qr-reader {
-    width:180px;
-    margin:auto;
-  }
-  #complete-screen {
-    display:none;
-    text-align:center;
-    padding:16px;
-    background:#dce6f2;
-    border-radius:8px;
-    margin:16px;
-    font-size:1em;
-    color:#2f4f6f;
-    font-weight:bold;
-  }
-  #form-btn {
-    padding: 12px 20px;
-    background-color: #4a6fa5;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 1em;
-    cursor: pointer;
-    margin-top: 10px;
-  }
-  #form-btn:hover {
-    background-color: #3b5c87;
-  }
+  body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #f0f4f8; }
+  video { width: 300px; border-radius: 8px; margin-top: 10px; }
+  #snapshot { display: none; }
+  #status { margin-top: 10px; font-weight: bold; color: #333; }
 </style>
 </head>
 <body>
+<h1>ピースサインで自動撮影＆LINE送信</h1>
+<video id="camera" autoplay playsinline></video>
+<canvas id="snapshot"></canvas>
+<p id="status">カメラ起動中...</p>
 
-<h1>ShiomiXビンゴ</h1>
-
-<!-- Googleマップ -->
-<div class="map-container">
-  <iframe src="https://www.google.com/maps/d/embed?mid=1QOBKw3gOBtzKEe3Rhy6D7VqRLc-FrMQ&ehbc=2E312F" loading="lazy"></iframe>
-</div>
-
-<!-- スタンプ -->
-<div class="stamp-container" id="stampContainer"></div>
-
-<!-- ボタン -->
-<div class="btn-container">
-  <button id="qr-btn" onclick="openModal()">QR読み込み開始</button><br>
-  <button id="reset-btn">全削除</button>
-</div>
-
-<!-- モーダル -->
-<div id="qr-modal">
-  <div class="modal-content">
-    <h3>QRコード読み取り</h3>
-    <div id="qr-reader"></div>
-    <button onclick="closeModal()" style="background-color:#4a6fa5;color:white;padding:10px;border:none;border-radius:6px;">閉じる</button>
-  </div>
-</div>
-
-<!-- 完了画面 -->
-<div id="complete-screen">
-  <h2>🎉 ビンゴ達成！おめでとうございます 🎉</h2>
-  <p>受付で景品を受け取るため、以下のフォームからニックネームを登録してください。</p>
-  <button id="form-btn" onclick="window.open('https://forms.office.com/r/sn3wvtS6Yy','_blank')">応募フォームへ</button>
-  <p>※送信後、この画面を受付で提示してください。</p>
-</div>
-
-<!-- 音声 -->
-<audio id="fanfare" src="https://www.soundjay.com/button/sounds/button-09.mp3" preload="auto"></audio>
-
-<!-- QRコードライブラリ -->
-<script src="https://unpkg.com/html5-qrcode"></script>
+<!-- MediaPipe & LIFF SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
-  const container = document.getElementById('stampContainer');
+const video = document.getElementById('camera');
+const canvas = document.getElementById('snapshot');
+const ctx = canvas.getContext('2d');
+const statusText = document.getElementById('status');
+let capturedImage = null;
+let sent = false; // 二重送信防止
 
-  for (let i = 1; i <= 9; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'stamp-cell';
-    const label = document.createElement('span');
-    label.textContent = 'スタンプ' + i;
-    cell.appendChild(label);
-    if (savedStamps.includes('stamp' + i)) {
-      const stamp = document.createElement('div');
-      stamp.className = 'stamp-mark';
-      stamp.textContent = 'ShiomiX';
-      cell.appendChild(stamp);
+// ✅ LIFF初期化
+async function initLIFF() {
+  await liff.init({ liffId: "YOUR_LIFF_ID" }); // ←ここに既存のLIFF IDを設定
+  if (!liff.isLoggedIn()) {
+    liff.login();
+  }
+}
+initLIFF();
+
+// ✅ カメラ起動
+navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+  video.srcObject = stream;
+});
+
+// ✅ MediaPipe Hands設定
+const hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+hands.onResults(results => {
+  if (results.multiHandLandmarks.length > 0 && !sent) {
+    const landmarks = results.multiHandLandmarks[0];
+    if (checkPeaceSign(landmarks)) {
+      takePhotoAndSend();
     }
-    container.appendChild(cell);
   }
 });
 
-let qrReader;
+const camera = new Camera(video, {
+  onFrame: async () => { await hands.send({ image: video }); },
+  width: 300, height: 300
+});
+camera.start();
 
-async function openModal() {
-  document.getElementById('qr-modal').style.display = 'flex';
-  if (qrReader) {
-    await qrReader.stop();
-    await qrReader.clear();
-    qrReader = null;
-  }
-  qrReader = new Html5Qrcode("qr-reader");
+// ✅ ピースサイン判定
+function checkPeaceSign(landmarks) {
+  const indexUp = landmarks[8].y < landmarks[6].y;
+  const middleUp = landmarks[12].y < landmarks[10].y;
+  const ringDown = landmarks[16].y > landmarks[14].y;
+  const pinkyDown = landmarks[20].y > landmarks[18].y;
+  return indexUp && middleUp && ringDown && pinkyDown;
+}
+
+// ✅ 撮影＋LINE送信
+async function takePhotoAndSend() {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
+  capturedImage = canvas.toDataURL('image/png');
+  statusText.textContent = "📸 ピースサイン検出 → 撮影＆送信中...";
+  sent = true;
+
   try {
-    await qrReader.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 160 },
-      qrCodeMessage => {
-        if (/^stamp[1-9]$/.test(qrCodeMessage)) {
-          const index = parseInt(qrCodeMessage.replace('stamp',''));
-          const cells = document.querySelectorAll('.stamp-cell');
-          cells.forEach((cell, idx) => {
-            if (idx === index-1 && !cell.querySelector('.stamp-mark')) {
-              const stamp = document.createElement('div');
-              stamp.className = 'stamp-mark';
-              stamp.textContent = 'ShiomiX';
-              cell.innerHTML = '';
-              cell.appendChild(stamp);
-              const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
-              savedStamps.push('stamp' + index);
-              localStorage.setItem('stamps', JSON.stringify(savedStamps));
-            }
-          });
-          checkBingo();
-          closeModal();
-        }
-      }
-    );
+    await liff.sendMessages([{
+      type: "image",
+      originalContentUrl: capturedImage,
+      previewImageUrl: capturedImage
+    }]);
+    statusText.textContent = "✅ LINEに画像を送信しました！";
   } catch (err) {
-    alert('カメラ起動エラー: ' + err);
+    statusText.textContent = "❌ 送信エラー: " + err;
   }
-}
-
-async function closeModal() {
-  document.getElementById('qr-modal').style.display = 'none';
-  if (qrReader) {
-    await qrReader.stop();
-    await qrReader.clear();
-    qrReader = null;
-  }
-}
-
-document.getElementById('reset-btn').addEventListener('click', () => {
-  if (confirm('本当に全てのスタンプを削除しますか？')) {
-    localStorage.removeItem('stamps');
-    alert('スタンプを全削除しました');
-    location.reload();
-  }
-});
-
-function checkBingo() {
-  const savedStamps = JSON.parse(localStorage.getItem('stamps')) || [];
-  const bingoPatterns = [
-    [1,2,3],[4,5,6],[7,8,9],
-    [1,4,7],[2,5,8],[3,6,9],
-    [1,5,9],[3,5,7]
-  ];
-  for (let pattern of bingoPatterns) {
-    if (pattern.every(num => savedStamps.includes('stamp' + num))) {
-      document.getElementById('complete-screen').style.display = 'block';
-      document.getElementById('complete-screen').scrollIntoView({ behavior: 'smooth' });
-      playFanfare();
-      break;
-    }
-  }
-}
-
-function playFanfare() {
-  document.getElementById('fanfare').play();
 }
 </script>
 </body>

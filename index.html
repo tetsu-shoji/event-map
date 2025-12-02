@@ -3,38 +3,33 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>ピースサインで自動撮影＆LINE送信</title>
+<title>ピースサインでメッセージ送信</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
   body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #f0f4f8; }
   video { width: 300px; border-radius: 8px; margin-top: 10px; }
-  #snapshot { display: none; }
   #status { margin-top: 10px; font-weight: bold; color: #333; }
 </style>
 </head>
 <body>
-<h1>ピースサインで自動撮影＆LINE送信</h1>
+<h1>ピースサインで「ピース」送信</h1>
 <video id="camera" autoplay playsinline></video>
-<canvas id="snapshot"></canvas>
 <p id="status">カメラ起動中...</p>
 
 <!-- MediaPipe & LIFF SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js</script>
+https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js</script>
+https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js</script>
+https://static.line-scdn.net/liff/edge/2/sdk.js</script>
 
 <script>
 const video = document.getElementById('camera');
-const canvas = document.getElementById('snapshot');
-const ctx = canvas.getContext('2d');
 const statusText = document.getElementById('status');
-let capturedImage = null;
 let sent = false; // 二重送信防止
 
 // ✅ LIFF初期化
 async function initLIFF() {
-  await liff.init({ liffId: "YOUR_LIFF_ID" }); // ←ここに既存のLIFF IDを設定
+  await liff.init({ liffId: "YOUR_LIFF_ID" }); // ←既存のLIFF IDを設定
   if (!liff.isLoggedIn()) {
     liff.login();
   }
@@ -53,7 +48,7 @@ hands.onResults(results => {
   if (results.multiHandLandmarks.length > 0 && !sent) {
     const landmarks = results.multiHandLandmarks[0];
     if (checkPeaceSign(landmarks)) {
-      takePhotoAndSend();
+      sendPeaceMessage();
     }
   }
 });
@@ -73,22 +68,16 @@ function checkPeaceSign(landmarks) {
   return indexUp && middleUp && ringDown && pinkyDown;
 }
 
-// ✅ 撮影＋LINE送信
-async function takePhotoAndSend() {
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  ctx.drawImage(video, 0, 0);
-  capturedImage = canvas.toDataURL('image/png');
-  statusText.textContent = "📸 ピースサイン検出 → 撮影＆送信中...";
+// ✅ 「ピース」メッセージ送信
+async function sendPeaceMessage() {
+  statusText.textContent = "📸 ピースサイン検出 → メッセージ送信中...";
   sent = true;
-
   try {
     await liff.sendMessages([{
-      type: "image",
-      originalContentUrl: capturedImage,
-      previewImageUrl: capturedImage
+      type: "text",
+      text: "ピース"
     }]);
-    statusText.textContent = "✅ LINEに画像を送信しました！";
+    statusText.textContent = "✅ LINEに「ピース」を送信しました！";
   } catch (err) {
     statusText.textContent = "❌ 送信エラー: " + err;
   }

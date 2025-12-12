@@ -2,19 +2,19 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<title>イベントマップ＋コメント投稿</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<style>
-  body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
-  h1 { font-size: 1.8em; color: #2e7d32; text-align: center; }
-  #map { width: 100%; height: 300px; margin-top: 20px; border-radius: 8px; }
-  #post-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
-  textarea { width: 100%; min-height: 60px; font-size: 14px; }
-  button { padding: 12px 20px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
-  button:hover { background-color: #1b5e20; }
-  #status { color:#666; margin-left:6px; font-size: 0.9em; }
-</style>
+  <meta charset="UTF-8" />
+  <title>ShiomiX イベントマップ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
+    h1 { font-size: 1.8em; color: #2e7d32; text-align: center; }
+    #map { width: 100%; height: 300px; margin-top: 20px; border-radius: 8px; }
+    #post-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
+    textarea { width: 100%; min-height: 60px; font-size: 14px; }
+    button { padding: 12px 20px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
+    button:hover { background-color: #1b5e20; }
+    #status { color:#666; margin-left:6px; font-size: 0.9em; }
+  </style>
 </head>
 <body>
 
@@ -31,24 +31,28 @@
   </div>
 </div>
 
-<!-- LIFF SDK -->
+<!-- LIFF SDK（※正しいscriptタグ形式） -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
 const CONFIG = {
-  LIFF_ID: "2008298139-lwyMjbwP", // ご提供のLIFF ID
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwuLDoaxlono89h-qZbWf4k7Q5OMLwSeKO9zwFCZ6Bjds9ko_SSuRxydNBf8USWkgc/exec", // ご提供のApps Script URL
+  LIFF_ID: "2008298139-lwyMjbwP", // いただいたLIFF ID
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxTRFhrqjRpXhcPWc1vDfnHGxMDJbz8crKWJqH4DERL9xWFywqDeJ_pOx5hUxPijaY/exec", // いただいたWebアプリURL
   TTL_HOURS_TO_LOAD: 24
 };
 
 let map;
 
-// HTMLエスケープ
+// HTMLエスケープ（吹き出し内のXSS対策）
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 (async function initLiff(){
-  await liff.init({ liffId: CONFIG.LIFF_ID });
-  if (!liff.isLoggedIn()) liff.login();
+  try {
+    await liff.init({ liffId: CONFIG.LIFF_ID });
+    if (!liff.isLoggedIn()) liff.login();
+  } catch (e) {
+    console.error('LIFF init error:', e);
+  }
 })();
 
 async function initMap() {
@@ -62,10 +66,10 @@ function setStatus(msg){ document.getElementById('status').textContent = msg || 
 
 async function getCurrentLatLng(){
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject();
+    if (!navigator.geolocation) return reject(new Error('no geolocation'));
     navigator.geolocation.getCurrentPosition(
       p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => reject(),
+      err => reject(err),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   });
@@ -75,18 +79,23 @@ async function loadPosts(){
   setStatus('読み込み中…');
   try {
     const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?ttlHours=${CONFIG.TTL_HOURS_TO_LOAD}`);
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error);
+    const text = await res.text();               // 一旦RAWで受け取り
+    let json;
+    try { json = JSON.parse(text); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+text); }
+    if (!json.ok) throw new Error(json.error || 'failed');
     json.data.forEach(addMarker);
     setStatus(`読み込み完了（${json.data.length}件）`);
   } catch (e) {
+    console.error(e);
     setStatus('読み込み失敗');
   }
 }
 
 function addMarker(p){
   const marker = new google.maps.Marker({ position: { lat: p.lat, lng: p.lng }, map });
-  const info = new google.maps.InfoWindow({ content: `<div><b>${esc(p.comment)}</b><br>${new Date(p.timestamp).toLocaleString()}</div>` });
+  const info = new google.maps.InfoWindow({
+    content: `<div><b>${esc(p.comment)}</b><br>${new Date(p.timestamp).toLocaleString()}</div>`
+  });
   marker.addListener('click', () => info.open({ anchor: marker, map }));
 }
 
@@ -98,22 +107,30 @@ document.getElementById('postBtn').addEventListener('click', async () => {
     const profile = await liff.getProfile();
     const pos = await getCurrentLatLng().catch(() => map.getCenter().toJSON());
     const payload = { userId: profile.userId, lat: pos.lat, lng: pos.lng, comment };
+
     const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, // application/jsonでOK
+      body: JSON.stringify(payload)
     });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error);
+    const text = await res.text();               // RAWで確認
+    let json;
+    try { json = JSON.parse(text); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+text); }
+    if (!json.ok) throw new Error(json.error || '投稿失敗');
+
+    // 地図へ即時反映
     addMarker({ timestamp: new Date().toISOString(), lat: pos.lat, lng: pos.lng, comment });
     document.getElementById('comment').value = '';
     setStatus('投稿しました');
   } catch (e) {
+    console.error(e);
+    alert('投稿に失敗しました。時間をおいて再度お試しください。');
     setStatus('投稿エラー');
-    alert('投稿に失敗しました');
   }
 });
 </script>
 
-<!-- Google Maps API（APIキー組み込み済み） -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap"></script>
+<!-- Google Maps API（APIキー組み込み。async+defer推奨） -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
 </body>
 </html>

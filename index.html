@@ -3,13 +3,13 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ShiomiX イベントマップ（LINEアイコンの吹き出しマーカー）</title>
+  <title>ShiomiX イベントマップ（コメント投稿対応・吹き出しIcon）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
     h1 { font-size: 1.8em; color: #2e7d32; text-align: center; }
 
-    #map { width: 100%; height: 320px; margin-top: 14px; border-radius: 8px; }
+    #map { width: 100%; height: 320px; margin-top: 20px; border-radius: 8px; }
 
     #post-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
     textarea { width: 100%; min-height: 64px; font-size: 14px; }
@@ -49,7 +49,7 @@
       word-break: break-word;
     }
 
-    /* ミニバッジ（例：日付タグ） */
+    /* ミニバッジ（例：先頭の [2/24] をバッジ化） */
     .mini-badge {
       display:inline-block;
       background:#0078D7; color:#fff;
@@ -74,11 +74,11 @@
   <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
 </div>
 
-<!-- ▼ 正しい script タグで LIFF を読み込み -->
+<!-- LIFF SDK（正しいscriptタグ形式） -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
-/** 設定（組み込み済み） **/
+/** 設定（埋め込み済み） **/
 const CONFIG = {
   LIFF_ID: "2008298139-lwyMjbwP",
   APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyFIrGTYWNhTw7I0u5zK-uPDrzGxH_7xXUxbS-ptxoWBWJTPeE-lu6QLSN5jt35xSc/exec",
@@ -90,8 +90,8 @@ let map;
 // HTMLエスケープ（XSS対策）
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-// LIFF 初期化（エラーでも継続）
-const liffReady = (async () => {
+// ---- LIFF初期化（エラーでも継続） ----
+const liffReady = (async function(){
   try {
     await liff.init({ liffId: CONFIG.LIFF_ID });
     if (!liff.isLoggedIn()) liff.login();
@@ -101,7 +101,17 @@ const liffReady = (async () => {
 })();
 async function ensureLiff(){ try { await liffReady; } catch(e){} }
 
-// 位置情報（失敗時は地図中心）
+// ---- 地図初期化（Google Maps callback） ----
+async function initMap() {
+  const center = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
+  map = new google.maps.Map(document.getElementById("map"), { zoom: 17, center });
+  new google.maps.Marker({ position: center, map, title: "潮見高架下" });
+  await loadPosts();
+}
+
+function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
+
+// 位置取得（失敗時は地図中心）
 async function getCurrentLatLng(){
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('no geolocation'));
@@ -113,17 +123,7 @@ async function getCurrentLatLng(){
   });
 }
 
-// 地図初期化（Google Maps callback）
-async function initMap() {
-  const center = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
-  map = new google.maps.Map(document.getElementById("map"), { zoom: 17, center });
-  new google.maps.Marker({ position: center, map, title: "潮見高架下" });
-  await loadPosts();
-}
-
-function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
-
-// 投稿読み込み（GET）
+// ---- 投稿一覧読み込み（GET） ----
 async function loadPosts(){
   setStatus('読み込み中…');
   try {
@@ -132,7 +132,7 @@ async function loadPosts(){
     let json;
     try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || 'failed');
-    json.data.forEach(addBubbleMarker);
+    json.data.forEach(addBubbleMarker);  // ← 吹き出し型マーカーで描画
     setStatus(`読み込み完了（${json.data.length}件）`);
   } catch (e) {
     console.error('loadPosts error:', e);
@@ -140,17 +140,19 @@ async function loadPosts(){
   }
 }
 
-// 吹き出し型マーカー（LINEアイコン使用）
+// ---- 吹き出し型マーカー（LINEアイコン使用） ----
 function addBubbleMarker(p){
+  const lat = Number(p.lat), lng = Number(p.lng);
+  if (!isFinite(lat) || !isFinite(lng)) return; // 座標不正はスキップ
+
+  // コンテンツ作成
   const container = document.createElement('div');
   container.className = 'bubble-marker';
 
   const avatar = document.createElement('div');
   avatar.className = 'bubble-avatar';
   const ava = String(p.avatarUrl || '').trim();
-
-  // LINEの pictureUrl が無い場合のデフォルト
-  const fallback = 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/user-circle.svg';
+  const fallback = 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/user-circle.svg'; // pictureUrl ない場合の代替
   avatar.style.backgroundImage = `url(${ava || fallback})`;
 
   const text = document.createElement('div');
@@ -175,14 +177,14 @@ function addBubbleMarker(p){
   // AdvancedMarkerElement（HTMLをそのままマーカー化）
   new google.maps.marker.AdvancedMarkerElement({
     map,
-    position: { lat: Number(p.lat), lng: Number(p.lng) },
+    position: { lat, lng },
     content: container,
     title: raw.substring(0, 30),
     zIndex: 10
   });
 }
 
-// 投稿（LINEの pictureUrl を保存）
+// ---- 投稿（POST：LINEの pictureUrl を保存） ----
 document.getElementById('postBtn').addEventListener('click', onPost);
 
 async function onPost(){
@@ -191,6 +193,7 @@ async function onPost(){
   const commentEl = document.getElementById('comment');
   const comment = commentEl.value.trim();
   if (!comment) return alert('コメントを入力してください');
+
   setStatus('投稿中…');
 
   // LINEプロフィール取得
@@ -213,6 +216,7 @@ async function onPost(){
   const payload = { userId, lat: pos.lat, lng: pos.lng, comment, avatarUrl };
 
   try {
+    // application/json で送信
     const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -223,7 +227,7 @@ async function onPost(){
     try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || '投稿失敗');
 
-    // 地図へ即時反映
+    // 地図へ即時反映（LINEアイコン入り）
     addBubbleMarker({
       timestamp: new Date().toISOString(),
       lat: pos.lat,
@@ -241,7 +245,7 @@ async function onPost(){
 }
 </script>
 
-<!-- ▼ 正しい script タグで Google Maps を読み込み（async + defer / callback / libraries=marker） -->
+<!-- Google Maps API（★AdvancedMarker用に libraries=marker を追加） -->
 <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap&libraries=marker"></script>
 </body>
 </html>

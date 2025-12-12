@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ShiomiX イベントマップ（コメント投稿対応）</title>
+  <title>ShiomiX イベントマップ（コメント投稿＋期間／削除）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
@@ -11,10 +11,15 @@
     #map { width: 100%; height: 300px; margin-top: 20px; border-radius: 8px; }
     #post-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
     textarea { width: 100%; min-height: 60px; font-size: 14px; }
-    button { padding: 12px 20px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
+    button { padding: 10px 16px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
     button:hover { background-color: #1b5e20; }
     #status { color:#666; margin-left:6px; font-size: 0.9em; }
     .small { font-size: 12px; color:#777; }
+    .row { display:flex; gap:8px; align-items: center; flex-wrap: wrap; }
+    input[type="datetime-local"] { padding:6px; font-size:14px; }
+    select { padding:6px; font-size:14px; }
+    .danger { background:#c62828; }
+    .danger:hover { background:#8e0000; }
   </style>
 </head>
 <body>
@@ -22,11 +27,28 @@
 <h1>ShiomiX イベントマップ</h1>
 <div id="map"></div>
 
-<!-- コメント投稿 -->
+<!-- 投稿パネル -->
 <div id="post-panel">
   <p>現在地（または地図中心）を使ってコメントを投稿します。</p>
   <textarea id="comment" placeholder="例：混雑少なめ／イベント開始まで10分"></textarea>
-  <div>
+
+  <!-- 変更点: 表示期間の入力 -->
+  <div class="row">
+    <label for="startAt">開始：</label>
+    <input type="datetime-local" id="startAt">
+    <label for="endAt">終了：</label>
+    <input type="datetime-local" id="endAt">
+    <!-- 便利プリセット -->
+    <select id="preset">
+      <option value="">プリセット（任意）</option>
+      <option value="30m">30分</option>
+      <option value="1h">1時間</option>
+      <option value="2h">2時間</option>
+      <option value="today">今日いっぱい</option>
+    </select>
+  </div>
+
+  <div class="row">
     <button id="postBtn">コメントを投稿</button>
     <span id="status"></span>
   </div>
@@ -37,7 +59,7 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
-/** 設定（埋め込み済み） **/
+/** 設定 **/
 const CONFIG = {
   LIFF_ID: "2008298139-lwyMjbwP",
   APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyFIrGTYWNhTw7I0u5zK-uPDrzGxH_7xXUxbS-ptxoWBWJTPeE-lu6QLSN5jt35xSc/exec",
@@ -45,11 +67,12 @@ const CONFIG = {
 };
 
 let map;
+const markersById = new Map(); // 変更点: id→marker 管理
 
-// HTMLエスケープ（吹き出し内のXSS対策）
+// HTMLエスケープ
 const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-// ---- LIFF初期化（安全に待つ） ----
+// ---- LIFF初期化 ----
 let liffReady = (async function(){
   try {
     await liff.init({ liffId: CONFIG.LIFF_ID });
@@ -58,18 +81,14 @@ let liffReady = (async function(){
     console.warn('LIFF init error:', e);
   }
 })();
-async function ensureLiff(){
-  try { await liffReady; } catch(e) {}
-}
+async function ensureLiff(){ try { await liffReady; } catch(e) {} }
 
-// ---- 地図初期化 ----
 async function initMap() {
   const center = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
-  map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center, mapId: undefined });
-  // 参考の中心マーカーは不要ならコメントアウト可能
-  // new google.maps.Marker({ position: center, map, title: "潮見高架下" });
+  map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center });
   await loadPosts();
 }
+
 function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
 
 // 位置取得（失敗時は地図中心）
@@ -84,16 +103,27 @@ async function getCurrentLatLng(){
   });
 }
 
-// ---- 投稿一覧読み込み（GET） ----
+// ---- GET（期間内のみ返す） ----
 async function loadPosts(){
   setStatus('読み込み中…');
   try {
     const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?ttlHours=${CONFIG.TTL_HOURS_TO_LOAD}`);
-    const raw = await res.text(); // RAWで受け取り
+    const raw = await res.text();
     let json;
     try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || 'failed');
-    json.data.forEach(addMarker);
+
+    // 変更点: 既存マーカーをクリア（簡易）
+    for (const m of markersById.values()) m.setMap(null);
+    markersById.clear();
+
+    // 返却は期間内のみのはずだが、念のためクライアント側でもフィルタ
+    const now = Date.now();
+    json.data
+      .filter(p => (!p.startAt || new Date(p.startAt).getTime() <= now) &&
+                   (!p.endAt   || new Date(p.endAt).getTime()   >= now) &&
+                   !p.deletedAt)
+      .forEach(addMarker);
     setStatus(`読み込み完了（${json.data.length}件）`);
   } catch (e) {
     console.error('loadPosts error:', e);
@@ -101,192 +131,127 @@ async function loadPosts(){
   }
 }
 
-/** ========= 吹き出しマーカー生成 =========
- * 参考画像風レイアウト：
- * [丸アイコン] [角丸吹き出し + コメントテキスト] + 下側にしっぽ
- * - テキスト幅に合わせてSVGを動的生成
- * - DPI依存を避けるため、サイズはベクターで指定
+/** ===== 吹き出しアイコン生成（前回の関数を使用） =====
+ * ※ makeSpeechBubbleSVG / measureLines は前回ご提供のものをそのまま利用してください
+ *   （ここでは簡潔化のため省略。前回コードからコピペでOK）
  */
-const DEFAULT_AVATAR_FILL = '#5b86e5'; // デフォルト丸アイコン色（画像がない場合）
-const BUBBLE_BG = '#ffffff';
-const BUBBLE_BORDER = '#2e7d32';
-const TEXT_COLOR = '#333333';
-const SHADOW = 'rgba(0,0,0,0.15)';
+// --- 省略: measureLines / makeSpeechBubbleSVG をここに貼り付け ---
 
-function measureLines(text, maxCharsPerLine = 14){
-  // ざっくりした折返し（日本語想定：等幅ではないがモバイルで見やすい程度に）
-  const words = text.split(/\s+/);
-  const lines = [];
-  let line = '';
-  for (const w of words){
-    if ((line + ' ' + w).trim().length > maxCharsPerLine){
-      if (line) lines.push(line);
-      // 長い連続文字（絵文字・句読点なし）にも対応：必要なら強制分割
-      if (w.length > maxCharsPerLine){
-        let start = 0;
-        while (start < w.length){
-          lines.push(w.slice(start, start + maxCharsPerLine));
-          start += maxCharsPerLine;
-        }
-        line = '';
-      } else {
-        line = w;
-      }
-    } else {
-      line = (line ? line + ' ' : '') + w;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-/** SVG生成：コメントから吹き出しを作る */
-function makeSpeechBubbleSVG(comment, avatarUrl){
-  const text = esc(comment);
-  const lines = measureLines(text, 14);
-  const lineHeight = 18;     // px
-  const paddingX = 10;       // テキスト左右パディング
-  const paddingY = 10;       // テキスト上下パディング
-  const avatarSize = 28;     // 左の丸（または画像）サイズ
-  const gap = 8;             // 丸と吹き出しの間
-  const tailW = 14;          // しっぽ幅
-  const tailH = 10;          // しっぽ高さ
-  const radius = 12;         // 吹き出し角の半径
-  const strokeW = 2;         // 枠線の太さ
-
-  const textWidth = Math.max(...lines.map(s => Math.max(16, s.length))) * 7; // ざっくり幅
-  const bubbleW = Math.max(60, textWidth + paddingX * 2);
-  const bubbleH = lines.length * lineHeight + paddingY * 2;
-
-  const totalW = avatarSize + gap + bubbleW;
-  const totalH = Math.max(avatarSize, bubbleH) + tailH;
-
-  // SVGの原点（0,0）は左上。マーカーの"指し位置"を下中央にしたいので、後でanchorで調整
-  // しっぽは吹き出し下辺の右寄りに描く（見栄え優先）
-  const tailX = avatarSize + gap + bubbleW * 0.7;
-  const tailY = bubbleH;
-
-  // 影（フィルター）
-  const svg =
-`<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
-  <defs>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="${SHADOW}" flood-opacity="1"/>
-    </filter>
-    ${avatarUrl ? '' : `
-      <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${DEFAULT_AVATAR_FILL}"/>
-        <stop offset="100%" stop-color="#4f65c6"/>
-      </linearGradient>
-    `}
-  </defs>
-
-  <!-- 左の丸アイコン -->
-  ${avatarUrl
-    ? `<clipPath id="clipCircle"><circle cx="${avatarSize/2}" cy="${bubbleH/2}" r="${avatarSize/2}"/></clipPath>
-       <image href="${avatarUrl}" x="0" y="${bubbleH/2 - avatarSize/2}" width="${avatarSize}" height="${avatarSize}" clip-path="url(#clipCircle)"></image>
-       <circle cx="${avatarSize/2}" cy="${bubbleH/2}" r="${avatarSize/2}" fill="none" stroke="${BUBBLE_BORDER}" stroke-width="2"/>`
-    : `<circle cx="${avatarSize/2}" cy="${bubbleH/2}" r="${avatarSize/2}" fill="url(#grad)" stroke="${BUBBLE_BORDER}" stroke-width="2"/>`
-  }
-
-  <!-- 吹き出し本体 -->
-  <g filter="url(#shadow)">
-    <rect x="${avatarSize + gap}" y="0" rx="${radius}" ry="${radius}" width="${bubbleW}" height="${bubbleH}"
-          fill="${BUBBLE_BG}" stroke="${BUBBLE_BORDER}" stroke-width="${strokeW}"/>
-    <!-- しっぽ -->
-    <path d="M ${tailX} ${tailY}
-             l ${tailW/2} ${tailH}
-             l ${-tailW} 0
-             Z"
-          fill="${BUBBLE_BG}" stroke="${BUBBLE_BORDER}" stroke-width="${strokeW}"/>
-  </g>
-
-  <!-- テキスト -->
-  <g font-family="Segoe UI, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif"
-     font-size="14" fill="${TEXT_COLOR}">
-     ${lines.map((ln, i) => {
-       const tx = avatarSize + gap + paddingX;
-       const ty = paddingY + (i+1) * lineHeight - 4; // 微調整
-       return `<text x="${tx}" y="${ty}">${ln}</text>`;
-     }).join('\n')}
-  </g>
-</svg>`;
-
-  // Data URLへ
-  const svg64 = btoa(unescape(encodeURIComponent(svg)));
-  const url = `data:image/svg+xml;base64,${svg64}`;
-  return {
-    url,
-    totalW,
-    totalH,
-    anchorX: (avatarSize + gap + bubbleW * 0.7), // しっぽの付け根あたり
-    anchorY: bubbleH + tailH
-  };
-}
-
-/** マーカー追加（アイコンを吹き出しに） */
 function addMarker(p){
   const position = { lat: p.lat, lng: p.lng };
-  const avatarUrl = p.avatarUrl || null; // 将来的にプロフィール画像を渡せる
+  const avatarUrl = p.avatarUrl || null;
   const { url, totalW, totalH, anchorX, anchorY } = makeSpeechBubbleSVG(p.comment || '', avatarUrl);
 
   const marker = new google.maps.Marker({
-    position,
-    map,
-    // アイコンをSVG data URLで設定
-    icon: {
-      url,
-      scaledSize: new google.maps.Size(totalW, totalH),
-      anchor: new google.maps.Point(anchorX, anchorY) // しっぽ先を位置合わせに
-    },
-    // 既存のタイトル等は不要
+    position, map,
+    icon: { url, scaledSize: new google.maps.Size(totalW, totalH), anchor: new google.maps.Point(anchorX, anchorY) }
   });
 
-  // クリックで詳細（タイムスタンプ）を補足表示したい場合のみInfoWindow
-  if (p.timestamp){
-    const info = new google.maps.InfoWindow({
-      content: `<div><b>${esc(p.comment)}</b><br>${new Date(p.timestamp).toLocaleString()}</div>`
-    });
-    marker.addListener('click', () => info.open({ anchor: marker, map }));
-  }
+  // 変更点: クリックで詳細＋削除ボタン（投稿者のみ）
+  const canDelete = (p.currentUserId && p.userId && p.currentUserId === p.userId);
+  const html = `
+    <div>
+      <div><b>${esc(p.comment || '')}</b></div>
+      ${p.startAt || p.endAt ? `
+        <div class="small">
+          表示期間：${p.startAt ? new Date(p.startAt).toLocaleString() : '（指定なし）'} 〜
+          ${p.endAt ? new Date(p.endAt).toLocaleString() : '（指定なし）'}
+        </div>` : ''
+      }
+      <div class="small">${p.timestamp ? new Date(p.timestamp).toLocaleString() : ''}</div>
+      ${canDelete ? `<div style="margin-top:6px;">
+        <button class="danger" id="delbtn-${p.id}">この投稿を削除</button>
+      </div>` : ''}
+    </div>`;
+
+  const info = new google.maps.InfoWindow({ content: html });
+  marker.addListener('click', () => {
+    info.open({ anchor: marker, map });
+    if (canDelete) {
+      // イベントを動的に紐付け
+      google.maps.event.addListenerOnce(info, 'domready', () => {
+        const btn = document.getElementById(`delbtn-${p.id}`);
+        if (btn) btn.onclick = () => deletePost(p.id, p.userId);
+      });
+    }
+  });
+
+  if (p.id) markersById.set(p.id, marker);
 }
 
-// ---- 投稿（POST：application/json → 失敗時 text/plainにフォールバック） ----
+// ---- 投稿（期間・削除対応） ----
 document.getElementById('postBtn').addEventListener('click', onPost);
+document.getElementById('preset').addEventListener('change', onPresetChange);
+
+// プリセット選択で endAt を自動入力
+function onPresetChange(){
+  const preset = document.getElementById('preset').value;
+  const startEl = document.getElementById('startAt');
+  const endEl = document.getElementById('endAt');
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const toLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // start は未指定なら now
+  if (!startEl.value) startEl.value = toLocal(now);
+
+  if (preset === '30m'){
+    const e = new Date(now.getTime() + 30*60*1000);
+    endEl.value = toLocal(e);
+  } else if (preset === '1h'){
+    const e = new Date(now.getTime() + 60*60*1000);
+    endEl.value = toLocal(e);
+  } else if (preset === '2h'){
+    const e = new Date(now.getTime() + 2*60*60*1000);
+    endEl.value = toLocal(e);
+  } else if (preset === 'today'){
+    const e = new Date();
+    e.setHours(23,59,0,0);
+    endEl.value = toLocal(e);
+  }
+}
 
 async function onPost(){
   await ensureLiff();
 
   const commentEl = document.getElementById('comment');
+  const startEl = document.getElementById('startAt');
+  const endEl = document.getElementById('endAt');
+
   const comment = commentEl.value.trim();
   if (!comment) return alert('コメントを入力してください');
 
+  // 期間バリデーション
+  let startAt = startEl.value ? new Date(startEl.value) : null;
+  let endAt   = endEl.value ? new Date(endEl.value) : null;
+  if (startAt && endAt && endAt.getTime() < startAt.getTime()){
+    return alert('終了時刻は開始時刻以降を指定してください');
+  }
+
   setStatus('投稿中…');
 
-  // ユーザー識別（LIFF未ログインやエラー時は guest で代替）
+  // ユーザー識別
   let userId = 'guest';
   let avatarUrl = null;
   try {
     const profile = await liff.getProfile();
     if (profile && profile.userId) userId = profile.userId;
-    // 画像があれば使う（参考画像の左丸内）
     if (profile && profile.pictureUrl) avatarUrl = profile.pictureUrl;
   } catch(e) {
     console.warn('getProfile error:', e);
   }
 
-  // 位置情報（失敗時は地図中心）
+  // 位置
   let pos;
-  try {
-    pos = await getCurrentLatLng();
-  } catch(e) {
-    pos = map.getCenter().toJSON();
-  }
+  try { pos = await getCurrentLatLng(); } catch(e) { pos = map.getCenter().toJSON(); }
 
-  const payload = { userId, lat: pos.lat, lng: pos.lng, comment, avatarUrl };
+  const payload = {
+    action: 'create', // 変更点: 明示的アクション
+    userId, lat: pos.lat, lng: pos.lng, comment, avatarUrl,
+    startAt: startAt ? startAt.toISOString() : null,
+    endAt: endAt ? endAt.toISOString() : null
+  };
 
   try {
-    // まず application/json で送信
     let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -297,14 +262,20 @@ async function onPost(){
     try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || '投稿失敗');
 
-    // 反映（即時表示）
-    addMarker({ timestamp: new Date().toISOString(), lat: pos.lat, lng: pos.lng, comment, avatarUrl });
+    // 反映（ID付き）
+    const nowIso = new Date().toISOString();
+    addMarker({
+      id: json.id,
+      timestamp: nowIso,
+      lat: pos.lat, lng: pos.lng, comment, avatarUrl,
+      startAt: payload.startAt, endAt: payload.endAt,
+      userId, currentUserId: userId
+    });
     commentEl.value = '';
     setStatus('投稿しました');
   } catch (e1) {
     console.warn('POST (json) failed, fallback to text/plain:', e1);
     try {
-      // 事前フライト環境での回避策：text/plain で再送
       let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -314,8 +285,14 @@ async function onPost(){
       let json;
       try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
       if (!json.ok) throw new Error(json.error || '投稿失敗');
-
-      addMarker({ timestamp: new Date().toISOString(), lat: pos.lat, lng: pos.lng, comment, avatarUrl });
+      const nowIso = new Date().toISOString();
+      addMarker({
+        id: json.id,
+        timestamp: nowIso,
+        lat: pos.lat, lng: pos.lng, comment, avatarUrl,
+        startAt: payload.startAt, endAt: payload.endAt,
+        userId, currentUserId: userId
+      });
       commentEl.value = '';
       setStatus('投稿しました');
     } catch (e2) {
@@ -325,8 +302,61 @@ async function onPost(){
     }
   }
 }
+
+// ---- 削除（本人／管理者のみ） ----
+async function deletePost(id, ownerUserId){
+  await ensureLiff();
+  // 現在ログイン中ユーザー確認
+  let currentUserId = 'guest';
+  try {
+    const profile = await liff.getProfile();
+    if (profile && profile.userId) currentUserId = profile.userId;
+  } catch(e) {}
+
+  setStatus('削除中…');
+  const payload = { action: 'delete', id, userId: currentUserId };
+
+  try {
+    let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    let raw = await res.text();
+    let json;
+    try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+    if (!json.ok) throw new Error(json.error || '削除失敗');
+
+    // 地図から除去
+    const mk = markersById.get(id);
+    if (mk) { mk.setMap(null); markersById.delete(id); }
+    setStatus('削除しました');
+  } catch(e1){
+    console.warn('DELETE json failed, fallback to text/plain:', e1);
+    try {
+      let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+      let raw = await res.text();
+      let json;
+      try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+      if (!json.ok) throw new Error(json.error || '削除失敗');
+
+      const mk = markersById.get(id);
+      if (mk) { mk.setMap(null); markersById.delete(id); }
+      setStatus('削除しました');
+    } catch(e2){
+      console.error('DELETE failed:', e2);
+      alert('削除に失敗しました。時間をおいて再度お試しください。');
+      setStatus('削除エラー');
+    }
+  }
+}
 </script>
 
-<!-- Google Maps API（APIキー組み込み。async+defer推奨） -->
+<!-- Google Maps API -->
 <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap"></script>
 </body>
+</html>

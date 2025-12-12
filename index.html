@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ShiomiX イベントマップ</title>
+  <title>ShiomiX イベントマップ（コメント投稿対応）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
@@ -14,6 +14,7 @@
     button { padding: 12px 20px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
     button:hover { background-color: #1b5e20; }
     #status { color:#666; margin-left:6px; font-size: 0.9em; }
+    .small { font-size: 12px; color:#777; }
   </style>
 </head>
 <body>
@@ -29,15 +30,17 @@
     <button id="postBtn">コメントを投稿</button>
     <span id="status"></span>
   </div>
+  <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
 </div>
 
-<!-- LIFF SDK（※正しいscriptタグ形式） -->
+<!-- LIFF SDK（正しいscriptタグ形式） -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
+/** 設定（埋め込み済み） **/
 const CONFIG = {
-  LIFF_ID: "2008298139-lwyMjbwP", // いただいたLIFF ID
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxTRFhrqjRpXhcPWc1vDfnHGxMDJbz8crKWJqH4DERL9xWFywqDeJ_pOx5hUxPijaY/exec", // いただいたWebアプリURL
+  LIFF_ID: "2008298139-lwyMjbwP",
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyFIrGTYWNhTw7I0u5zK-uPDrzGxH_7xXUxbS-ptxoWBWJTPeE-lu6QLSN5jt35xSc/exec",
   TTL_HOURS_TO_LOAD: 24
 };
 
@@ -46,15 +49,20 @@ let map;
 // HTMLエスケープ（吹き出し内のXSS対策）
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-(async function initLiff(){
+// ---- LIFF初期化（安全に待つ） ----
+let liffReady = (async function(){
   try {
     await liff.init({ liffId: CONFIG.LIFF_ID });
     if (!liff.isLoggedIn()) liff.login();
   } catch (e) {
-    console.error('LIFF init error:', e);
+    console.warn('LIFF init error:', e);
   }
 })();
+async function ensureLiff(){
+  try { await liffReady; } catch(e) {}
+}
 
+// ---- 地図初期化 ----
 async function initMap() {
   const center = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
   map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center });
@@ -64,6 +72,7 @@ async function initMap() {
 
 function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
 
+// 位置取得（失敗時は地図中心）
 async function getCurrentLatLng(){
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('no geolocation'));
@@ -75,18 +84,19 @@ async function getCurrentLatLng(){
   });
 }
 
+// ---- 投稿一覧読み込み（GET） ----
 async function loadPosts(){
   setStatus('読み込み中…');
   try {
     const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?ttlHours=${CONFIG.TTL_HOURS_TO_LOAD}`);
-    const text = await res.text();               // 一旦RAWで受け取り
+    const raw = await res.text();                 // RAWで受け取り、失敗時の文字列判定しやすく
     let json;
-    try { json = JSON.parse(text); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+text); }
+    try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || 'failed');
     json.data.forEach(addMarker);
     setStatus(`読み込み完了（${json.data.length}件）`);
   } catch (e) {
-    console.error(e);
+    console.error('loadPosts error:', e);
     setStatus('読み込み失敗');
   }
 }
@@ -99,38 +109,80 @@ function addMarker(p){
   marker.addListener('click', () => info.open({ anchor: marker, map }));
 }
 
-document.getElementById('postBtn').addEventListener('click', async () => {
-  const comment = document.getElementById('comment').value.trim();
+// ---- 投稿（POST：application/json → 失敗時 text/plainにフォールバック） ----
+document.getElementById('postBtn').addEventListener('click', onPost);
+
+async function onPost(){
+  await ensureLiff();
+
+  const commentEl = document.getElementById('comment');
+  const comment = commentEl.value.trim();
   if (!comment) return alert('コメントを入力してください');
+
   setStatus('投稿中…');
+
+  // ユーザー識別（LIFF未ログインやエラー時は guest で代替）
+  let userId = 'guest';
   try {
     const profile = await liff.getProfile();
-    const pos = await getCurrentLatLng().catch(() => map.getCenter().toJSON());
-    const payload = { userId: profile.userId, lat: pos.lat, lng: pos.lng, comment };
+    if (profile && profile.userId) userId = profile.userId;
+  } catch(e) {
+    console.warn('getProfile error:', e);
+  }
 
-    const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+  // 位置情報（失敗時は地図中心）
+  let pos;
+  try {
+    pos = await getCurrentLatLng();
+  } catch(e) {
+    pos = map.getCenter().toJSON();
+  }
+
+  const payload = { userId, lat: pos.lat, lng: pos.lng, comment };
+
+  try {
+    // まず application/json で送信
+    let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, // application/jsonでOK
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const text = await res.text();               // RAWで確認
+    let raw = await res.text();
     let json;
-    try { json = JSON.parse(text); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+text); }
+    try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || '投稿失敗');
 
-    // 地図へ即時反映
+    // 反映
     addMarker({ timestamp: new Date().toISOString(), lat: pos.lat, lng: pos.lng, comment });
-    document.getElementById('comment').value = '';
+    commentEl.value = '';
     setStatus('投稿しました');
-  } catch (e) {
-    console.error(e);
-    alert('投稿に失敗しました。時間をおいて再度お試しください。');
-    setStatus('投稿エラー');
+  } catch (e1) {
+    console.warn('POST (json) failed, fallback to text/plain:', e1);
+    try {
+      // 事前フライト環境での回避策：text/plain で再送
+      let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+      let raw = await res.text();
+      let json;
+      try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+      if (!json.ok) throw new Error(json.error || '投稿失敗');
+
+      addMarker({ timestamp: new Date().toISOString(), lat: pos.lat, lng: pos.lng, comment });
+      commentEl.value = '';
+      setStatus('投稿しました');
+    } catch (e2) {
+      console.error('POST failed:', e2);
+      alert('投稿に失敗しました。時間をおいて再度お試しください。');
+      setStatus('投稿エラー');
+    }
   }
-});
+}
 </script>
 
 <!-- Google Maps API（APIキー組み込み。async+defer推奨） -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap" async defer></script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap"></script>
 </body>
 </html>

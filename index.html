@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ShiomiX イベントマップ（LINEアイコン吹き出し）</title>
+  <title>ShiomiX イベントマップ（LINEアイコンの吹き出しマーカー）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
@@ -74,11 +74,11 @@
   <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
 </div>
 
-<!-- LIFF SDK -->
+<!-- ▼ 正しい script タグで LIFF を読み込み -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
-/** 設定（埋め込み済み） **/
+/** 設定（組み込み済み） **/
 const CONFIG = {
   LIFF_ID: "2008298139-lwyMjbwP",
   APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyFIrGTYWNhTw7I0u5zK-uPDrzGxH_7xXUxbS-ptxoWBWJTPeE-lu6QLSN5jt35xSc/exec",
@@ -113,7 +113,7 @@ async function getCurrentLatLng(){
   });
 }
 
-// 地図初期化
+// 地図初期化（Google Maps callback）
 async function initMap() {
   const center = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
   map = new google.maps.Map(document.getElementById("map"), { zoom: 17, center });
@@ -148,7 +148,8 @@ function addBubbleMarker(p){
   const avatar = document.createElement('div');
   avatar.className = 'bubble-avatar';
   const ava = String(p.avatarUrl || '').trim();
-  // 画像URLがない場合のデフォルト（人物アイコン）
+
+  // LINEの pictureUrl が無い場合のデフォルト
   const fallback = 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/user-circle.svg';
   avatar.style.backgroundImage = `url(${ava || fallback})`;
 
@@ -171,6 +172,7 @@ function addBubbleMarker(p){
   container.appendChild(avatar);
   container.appendChild(text);
 
+  // AdvancedMarkerElement（HTMLをそのままマーカー化）
   new google.maps.marker.AdvancedMarkerElement({
     map,
     position: { lat: Number(p.lat), lng: Number(p.lng) },
@@ -180,7 +182,7 @@ function addBubbleMarker(p){
   });
 }
 
-// 投稿（LIFFの LINE アイコンも保存）
+// 投稿（LINEの pictureUrl を保存）
 document.getElementById('postBtn').addEventListener('click', onPost);
 
 async function onPost(){
@@ -191,7 +193,7 @@ async function onPost(){
   if (!comment) return alert('コメントを入力してください');
   setStatus('投稿中…');
 
-  // LINEプロフィール取得（失敗時は guest）
+  // LINEプロフィール取得
   let userId = 'guest';
   let avatarUrl = '';
   try {
@@ -211,7 +213,6 @@ async function onPost(){
   const payload = { userId, lat: pos.lat, lng: pos.lng, comment, avatarUrl };
 
   try {
-    // application/json で送信
     const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -222,7 +223,7 @@ async function onPost(){
     try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || '投稿失敗');
 
-    // 地図へ即時反映（LINEアイコンも使用）
+    // 地図へ即時反映
     addBubbleMarker({
       timestamp: new Date().toISOString(),
       lat: pos.lat,
@@ -240,6 +241,7 @@ async function onPost(){
 }
 </script>
 
-<!-- Google Maps API（AdvancedMarker用に libraries=marker を追加） -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap&libraries=marker" async defer></script>
+<!-- ▼ 正しい script タグで Google Maps を読み込み（async + defer / callback / libraries=marker） -->
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap&libraries=marker"></script>
 </body>
+</html>

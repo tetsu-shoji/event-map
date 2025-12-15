@@ -8,7 +8,7 @@
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
     h1 { font-size: 1.8em; color: #2e7d32; text-align: center; }
-    /* 縦を2倍に */
+    /* 地図高さを2倍（600px） */
     #map { width: 100%; height: 600px; margin-top: 20px; border-radius: 8px; }
 
     #post-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
@@ -19,12 +19,8 @@
     .small { font-size: 12px; color:#777; }
     .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 
-    /* カラー選択のラジオボタン（見た目重視） */
     .color-swatch { display:inline-flex; align-items:center; gap:6px; margin-right:10px; cursor:pointer; }
-    .swatch {
-      width: 18px; height: 18px; border-radius: 50%;
-      border: 1px solid #bbb; display:inline-block;
-    }
+    .swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #bbb; display:inline-block; }
     .danger { background:#c62828; }
     .danger:hover { background:#8e0000; }
   </style>
@@ -34,7 +30,7 @@
 <h1>ShiomiXマップ</h1>
 <div id="map"></div>
 
-<!-- コメント投稿 -->
+<!-- 投稿パネル -->
 <div id="post-panel">
   <p>現在地（または地図中心）を使ってコメントを投稿します。</p>
 
@@ -84,7 +80,7 @@
   <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
 </div>
 
-<!-- LIFF SDK（正しいscriptタグ） -->
+<!-- ✅ 正しい LIFF SDK 読み込み -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
@@ -96,9 +92,9 @@ const CONFIG = {
 };
 
 let map;
-const markersById = new Map(); // id -> marker
+const markersById = new Map();
 
-// 淡色カラーマップ（枠なし）
+// 吹き出し色（淡色）
 const BUBBLE_COLORS = {
   pink:   '#ffd1dc',
   green:  '#d7f5d1',
@@ -107,7 +103,7 @@ const BUBBLE_COLORS = {
   gray:   '#e6e6e6'
 };
 
-// HTMLエスケープ
+// エスケープ
 const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // ---- LIFF初期化 ----
@@ -121,42 +117,322 @@ let liffReady = (async function(){
 })();
 async function ensureLiff(){ try { await liffReady; } catch(e) {} }
 
-// ---- 地図初期化（起動時に現在地へセンタリング） ----
-async function initMap() {
-  const fallback = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
-  map = new google.maps.Map(document.getElementById("map"), {
-    zoom: 18,
-    center: fallback
-  });
+function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
 
+// 現在地取得
+async function getCurrentLatLng(){
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('no geolocation'));
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      err => reject(err),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+}
+
+// ✅ Google Maps callback から確実に見えるように export
+window.initMap = async function initMap() {
+  const fallback = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
+  map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center: fallback });
+
+  // 起動時に現在地センタリング＋青点
   try {
     const me = await getCurrentLatLng();
     map.setCenter(me);
-    // 現在地の青ドット
     new google.maps.Marker({
-      position: me,
-      map,
+      position: me, map,
       icon: {
         path: google.maps.SymbolPath.CIRCLE,
-        fillColor: '#4285F4',
-        fillOpacity: 0.9,
-        strokeColor: '#ffffff',
-        strokeWeight: 2,
-        scale: 8
+        fillColor: '#4285F4', fillOpacity: 0.9,
+        strokeColor: '#ffffff', strokeWeight: 2, scale: 8
       },
       title: '現在地'
     });
   } catch(e) {
-    // 位置取得失敗時はフォールバック中心のまま
     console.warn('current position not available:', e);
   }
 
   await loadPosts();
+};
+
+// GET
+async function loadPosts(){
+  setStatus('読み込み中…');
+  try {
+    const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?ttlHours=${CONFIG.TTL_HOURS_TO_LOAD}`);
+    const raw = await res.text();
+    let json;
+    try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
+    if (!json.ok) throw new Error(json.error || 'failed');
+
+    for (const m of markersById.values()) m.setMap(null);
+    markersById.clear();
+
+    const now = Date.now();
+    json.data
+      .filter(p => (!p.endAt || new Date(p.endAt).getTime() >= now) && !p.deletedAt)
+      .forEach(addMarker);
+    setStatus(`読み込み完了（${json.data.length}件）`);
+  } catch (e) {
+    console.error('loadPosts error:', e);
+    setStatus('読み込み失敗');
+  }
 }
 
-function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
+// 折返し
+function measureLines(text, maxCharsPerLine = 14){
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const w of words){
+    if ((line + ' ' + w).trim().length > maxCharsPerLine){
+      if (line) lines.push(line);
+      if (w.length > maxCharsPerLine){
+        let start = 0;
+        while (start < w.length){
+          lines.push(w.slice(start, start + maxCharsPerLine));
+          start += maxCharsPerLine;
+        }
+        line = '';
+      } else {
+        line = w;
+      }
+    } else {
+      line = (line ? line + ' ' : '') + w;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
 
-// 位置取得（失敗時は地図中心）
-async function getCurrentLatLng(){
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('no geolocation'));
+// 点→右側吹き出し（枠なし・淡色）
+function makeSpeechBubbleSVG(comment, colorKey){
+  const bubbleColor = BUBBLE_COLORS[colorKey] || BUBBLE_COLORS.pink;
+  const text = esc(comment || '');
+  const lines = measureLines(text, 14);
+
+  const lineHeight = 18;
+  const paddingX = 10;
+  const paddingY = 10;
+  const dotR = 6;
+  const radius = 12;
+  const shadowColor = 'rgba(0,0,0,0.18)';
+
+  const textWidth = Math.max(...lines.map(s => Math.max(16, s.length))) * 7;
+  const bubbleW = Math.max(60, textWidth + paddingX * 2);
+  const bubbleH = lines.length * lineHeight + paddingY * 2;
+
+  const leftPad = dotR;
+  const bubbleX = leftPad;
+  const bubbleY = 0;
+  const dotCX = bubbleX;
+  const dotCY = bubbleY + bubbleH / 2;
+
+  const totalW = leftPad + bubbleW;
+  const totalH = bubbleH;
+
+  const svg =
+`<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="${shadowColor}" flood-opacity="1"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="${bubbleX}" y="${bubbleY}" rx="${radius}" ry="${radius}" width="${bubbleW}" height="${bubbleH}" fill="${bubbleColor}" />
+  </g>
+  <circle cx="${dotCX}" cy="${dotCY}" r="${dotR}" fill="#333333" />
+  <g font-family="Segoe UI, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif" font-size="14" fill="#333333">
+    ${lines.map((ln, i) => {
+      const tx = bubbleX + paddingX;
+      const ty = paddingY + (i+1) * lineHeight - 4;
+      return `<text x="${tx}" y="${ty}">${ln}</text>`;
+    }).join('\n')}
+  </g>
+</svg>`;
+  const svg64 = btoa(unescape(encodeURIComponent(svg)));
+  const url = `data:image/svg+xml;base64,${svg64}`;
+  return { url, totalW, totalH, anchorX: dotCX, anchorY: dotCY };
+}
+
+function addMarker(p){
+  const position = { lat: p.lat, lng: p.lng };
+  const { url, totalW, totalH, anchorX, anchorY } = makeSpeechBubbleSVG(p.comment || '', p.color || 'pink');
+
+  const marker = new google.maps.Marker({
+    position,
+    map,
+    icon: {
+      url,
+      scaledSize: new google.maps.Size(totalW, totalH),
+      anchor: new google.maps.Point(anchorX, anchorY)
+    }
+  });
+
+  const canDelete = (p.currentUserId && p.userId && p.currentUserId === p.userId);
+  const html = `
+    <div>
+      <div><b>${esc(p.comment || '')}</b></div>
+      ${p.endAt ? `<div class="small">表示終了：${new Date(p.endAt).toLocaleString()}</div>` : ''}
+      ${canDelete ? `<div style="margin-top:6px;">
+        <button class="danger" id="delbtn-${p.id}">このコメントを削除</button>
+      </div>` : ''}
+    </div>`;
+
+  const info = new google.maps.InfoWindow({ content: html });
+  marker.addListener('click', () => {
+    info.open({ anchor: marker, map });
+    if (canDelete) {
+      google.maps.event.addListenerOnce(info, 'domready', () => {
+        const btn = document.getElementById(`delbtn-${p.id}`);
+        if (btn) btn.onclick = () => deletePost(p.id);
+      });
+    }
+  });
+
+  if (p.id) markersById.set(p.id, marker);
+}
+
+// 投稿
+document.getElementById('postBtn').addEventListener('click', onPost);
+
+async function onPost(){
+  await ensureLiff();
+
+  const commentEl = document.getElementById('comment');
+  const durationEl = document.getElementById('duration');
+  const colorKey = (document.querySelector('input[name="bubbleColor"]:checked')?.value) || 'pink';
+  const comment = commentEl.value.trim();
+  if (!comment) return alert('コメントを入力してください');
+
+  const now = new Date();
+  const hours = parseInt(durationEl.value, 10);
+  const endAt = new Date(now.getTime() + hours * 60 * 60 * 1000);
+
+  setStatus('投稿中…');
+
+  let userId = 'guest';
+  try {
+    const profile = await liff.getProfile();
+    if (profile && profile.userId) userId = profile.userId;
+  } catch(e) { console.warn('getProfile error:', e); }
+
+  let pos;
+  try { pos = await getCurrentLatLng(); } catch(e) { pos = map.getCenter().toJSON(); }
+
+  const payload = {
+    action: 'create',
+    userId, lat: pos.lat, lng: pos.lng,
+    comment, color: colorKey,
+    startAt: now.toISOString(),
+    endAt: endAt.toISOString()
+  };
+
+  try {
+    let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    let raw = await res.text();
+    let json;
+    try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+    if (!json.ok) throw new Error(json.error || '投稿失敗');
+
+    addMarker({
+      id: json.id,
+      timestamp: now.toISOString(),
+      lat: pos.lat, lng: pos.lng, comment,
+      color: colorKey,
+      endAt: endAt.toISOString(),
+      userId, currentUserId: userId
+    });
+    commentEl.value = '';
+    setStatus('投稿しました');
+  } catch (e1) {
+    console.warn('POST (json) failed, fallback to text/plain:', e1);
+    try {
+      let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+      let raw = await res.text();
+      let json;
+      try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+      if (!json.ok) throw new Error(json.error || '投稿失敗');
+
+      addMarker({
+        id: json.id,
+        timestamp: now.toISOString(),
+        lat: pos.lat, lng: pos.lng, comment,
+        color: colorKey,
+        endAt: endAt.toISOString(),
+        userId, currentUserId: userId
+      });
+      commentEl.value = '';
+      setStatus('投稿しました');
+    } catch (e2) {
+      console.error('POST failed:', e2);
+      alert('投稿に失敗しました。時間をおいて再度お試しください。');
+      setStatus('投稿エラー');
+    }
+  }
+}
+
+// 削除
+async function deletePost(id){
+  await ensureLiff();
+  let currentUserId = 'guest';
+  try {
+    const profile = await liff.getProfile();
+    if (profile && profile.userId) currentUserId = profile.userId;
+  } catch(e) {}
+
+  setStatus('削除中…');
+  const payload = { action: 'delete', id, userId: currentUserId };
+
+  try {
+    let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    let raw = await res.text();
+    let json;
+    try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+    if (!json.ok) throw new Error(json.error || '削除失敗');
+
+    const mk = markersById.get(id);
+    if (mk) { mk.setMap(null); markersById.delete(id); }
+    setStatus('削除しました');
+  } catch(e1){
+    console.warn('DELETE json failed, fallback to text/plain:', e1);
+    try {
+      let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+      let raw = await res.text();
+      let json;
+      try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+      if (!json.ok) throw new Error(json.error || '削除失敗');
+
+      const mk = markersById.get(id);
+      if (mk) { mk.setMap(null); markersById.delete(id); }
+      setStatus('削除しました');
+    } catch(e2){
+      console.error('DELETE failed:', e2);
+      alert('削除に失敗しました。時間をおいて再度お試しください。');
+      setStatus('削除エラー');
+    }
+  }
+}
+</script>
+
+<!-- ✅ 正しい Google Maps API 読み込み（async + defer + callback） -->
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap"></script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ShiomiXマップ（コメント投稿対応）</title>
+  <title>ShiomiXマップ（ズーム連動＆一括削除対応）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
@@ -11,7 +11,7 @@
     /* 地図高さを2倍（600px） */
     #map { width: 100%; height: 600px; margin-top: 20px; border-radius: 8px; }
 
-    #post-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
+    #post-panel, #cleanup-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
     textarea { width: 100%; min-height: 60px; font-size: 14px; }
     button { padding: 10px 16px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
     button:hover { background-color: #1b5e20; }
@@ -19,10 +19,14 @@
     .small { font-size: 12px; color:#777; }
     .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 
+    /* カラー選択のラジオボタン（見た目重視） */
     .color-swatch { display:inline-flex; align-items:center; gap:6px; margin-right:10px; cursor:pointer; }
     .swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #bbb; display:inline-block; }
     .danger { background:#c62828; }
     .danger:hover { background:#8e0000; }
+
+    /* 小さな注意テキスト */
+    .hint { color:#555; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -30,7 +34,7 @@
 <h1>ShiomiXマップ</h1>
 <div id="map"></div>
 
-<!-- 投稿パネル -->
+<!-- コメント投稿 -->
 <div id="post-panel">
   <p>現在地（または地図中心）を使ってコメントを投稿します。</p>
 
@@ -71,6 +75,7 @@
       <option value="12">12時間</option>
       <option value="24">24時間</option>
     </select>
+    <span class="hint">※現在時刻＋選択時間で表示終了</span>
   </div>
 
   <div class="row">
@@ -80,7 +85,36 @@
   <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
 </div>
 
-<!-- ✅ 正しい LIFF SDK 読み込み -->
+<!-- 表示整理／一括削除 -->
+<div id="cleanup-panel">
+  <div class="row">
+    <strong>表示整理／削除</strong>
+  </div>
+
+  <!-- 非表示フィルタ -->
+  <div class="row">
+    <label><input type="checkbox" id="hideExpired" checked> 期限切れを隠す</label>
+    <span class="small">（endAt を過ぎた投稿は非表示）</span>
+  </div>
+  <div class="row">
+    <span class="small">色で隠す：</span>
+    <label><input type="checkbox" class="hideColor" value="pink"> ピンク</label>
+    <label><input type="checkbox" class="hideColor" value="green"> 薄緑</label>
+    <label><input type="checkbox" class="hideColor" value="blue"> 水色</label>
+    <label><input type="checkbox" class="hideColor" value="yellow"> 黄色</label>
+    <label><input type="checkbox" class="hideColor" value="gray"> グレー</label>
+    <button id="applyHide" style="margin-left:8px;">非表示を適用</button>
+    <button id="clearHide">非表示解除</button>
+  </div>
+
+  <!-- 一括削除（安全に本人のみ） -->
+  <div class="row">
+    <button id="bulkDeleteMine" class="danger">表示範囲の自分の投稿を一括削除</button>
+  </div>
+  <p class="small">※一括削除はサーバに削除を記録します（復元不可）。非表示はクライアントだけの視覚的整理です。</p>
+</div>
+
+<!-- 正しい LIFF SDK 読み込み -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
@@ -92,9 +126,10 @@ const CONFIG = {
 };
 
 let map;
-const markersById = new Map();
+const markersById = new Map(); // id -> marker
+const postsById   = new Map(); // id -> post（再描画やフィルタに使用）
 
-// 吹き出し色（淡色）
+// 吹き出し色（枠なし・淡色）
 const BUBBLE_COLORS = {
   pink:   '#ffd1dc',
   green:  '#d7f5d1',
@@ -103,7 +138,7 @@ const BUBBLE_COLORS = {
   gray:   '#e6e6e6'
 };
 
-// エスケープ
+// HTMLエスケープ
 const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // ---- LIFF初期化 ----
@@ -131,12 +166,11 @@ async function getCurrentLatLng(){
   });
 }
 
-// ✅ Google Maps callback から確実に見えるように export
-window.initMap = async function initMap() {
+// ====== 地図初期化（起動時に現在地センタリング＋青点） ======
+async function initMap() {
   const fallback = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
   map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center: fallback });
 
-  // 起動時に現在地センタリング＋青点
   try {
     const me = await getCurrentLatLng();
     map.setCenter(me);
@@ -154,9 +188,14 @@ window.initMap = async function initMap() {
   }
 
   await loadPosts();
-};
 
-// GET
+  // ★ ズーム連動（遠景=1行／近景=折返し）
+  map.addListener('zoom_changed', redrawIconsForZoom);
+}
+// Google Maps の callback から確実に見えるよう公開
+window.initMap = initMap;
+
+// ---- 投稿一覧読み込み（GET） ----
 async function loadPosts(){
   setStatus('読み込み中…');
   try {
@@ -166,13 +205,16 @@ async function loadPosts(){
     try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || 'failed');
 
+    // 既存マーカーをクリア
     for (const m of markersById.values()) m.setMap(null);
     markersById.clear();
+    postsById.clear();
 
-    const now = Date.now();
-    json.data
-      .filter(p => (!p.endAt || new Date(p.endAt).getTime() >= now) && !p.deletedAt)
-      .forEach(addMarker);
+    // 返却データをそのまま描画＆保持
+    json.data.forEach(p => {
+      postsById.set(p.id, p);
+      addMarker(p);
+    });
     setStatus(`読み込み完了（${json.data.length}件）`);
   } catch (e) {
     console.error('loadPosts error:', e);
@@ -180,9 +222,13 @@ async function loadPosts(){
   }
 }
 
-// 折返し
+// ====== 折返しロジック・ズームモード ======
+function ellipsis(text, maxChars) {
+  const t = text || '';
+  return t.length <= maxChars ? t : (t.slice(0, maxChars - 1) + '…');
+}
 function measureLines(text, maxCharsPerLine = 14){
-  const words = text.split(/\s+/);
+  const words = (text || '').split(/\s+/);
   const lines = [];
   let line = '';
   for (const w of words){
@@ -205,12 +251,24 @@ function measureLines(text, maxCharsPerLine = 14){
   if (line) lines.push(line);
   return lines;
 }
+// ズームに応じたモード（好みに応じて閾値調整可）
+function getWrapModeByZoom(zoom) {
+  return (zoom <= 16) ? 'single' : 'multi'; // 16以下：1行省略／17以上：折返し
+}
 
-// 点→右側吹き出し（枠なし・淡色）
-function makeSpeechBubbleSVG(comment, colorKey){
+// ====== モード対応の吹き出しSVG生成（点→右側、枠なし淡色） ======
+function makeSpeechBubbleSVG(comment, colorKey, mode /* 'single' | 'multi' */){
   const bubbleColor = BUBBLE_COLORS[colorKey] || BUBBLE_COLORS.pink;
-  const text = esc(comment || '');
-  const lines = measureLines(text, 14);
+  const textRaw = esc(comment || '');
+
+  // モードに応じてテキスト行を構成
+  let lines;
+  if (mode === 'single') {
+    const single = ellipsis(textRaw, 20); // 遠景は短め
+    lines = [single];
+  } else {
+    lines = measureLines(textRaw, 14);
+  }
 
   const lineHeight = 18;
   const paddingX = 10;
@@ -219,15 +277,18 @@ function makeSpeechBubbleSVG(comment, colorKey){
   const radius = 12;
   const shadowColor = 'rgba(0,0,0,0.18)';
 
-  const textWidth = Math.max(...lines.map(s => Math.max(16, s.length))) * 7;
+  const longest = Math.max(...lines.map(s => Math.max(16, s.length)));
+  const charW   = (mode === 'single') ? 7.2 : 7; // ほんの少し広め
+  const textWidth = Math.max(16, longest) * charW;
   const bubbleW = Math.max(60, textWidth + paddingX * 2);
   const bubbleH = lines.length * lineHeight + paddingY * 2;
 
+  // 左端合わせ（点→右側に吹き出し）
   const leftPad = dotR;
   const bubbleX = leftPad;
   const bubbleY = 0;
-  const dotCX = bubbleX;
-  const dotCY = bubbleY + bubbleH / 2;
+  const dotCX   = bubbleX;
+  const dotCY   = bubbleY + bubbleH / 2;
 
   const totalW = leftPad + bubbleW;
   const totalH = bubbleH;
@@ -251,25 +312,25 @@ function makeSpeechBubbleSVG(comment, colorKey){
     }).join('\n')}
   </g>
 </svg>`;
+
   const svg64 = btoa(unescape(encodeURIComponent(svg)));
   const url = `data:image/svg+xml;base64,${svg64}`;
   return { url, totalW, totalH, anchorX: dotCX, anchorY: dotCY };
 }
 
+// ====== マーカー追加（モード適用） ======
 function addMarker(p){
   const position = { lat: p.lat, lng: p.lng };
-  const { url, totalW, totalH, anchorX, anchorY } = makeSpeechBubbleSVG(p.comment || '', p.color || 'pink');
+  const mode = getWrapModeByZoom(map.getZoom() || 18);
+  const { url, totalW, totalH, anchorX, anchorY } = makeSpeechBubbleSVG(p.comment || '', p.color || 'pink', mode);
 
   const marker = new google.maps.Marker({
     position,
     map,
-    icon: {
-      url,
-      scaledSize: new google.maps.Size(totalW, totalH),
-      anchor: new google.maps.Point(anchorX, anchorY)
-    }
+    icon: { url, scaledSize: new google.maps.Size(totalW, totalH), anchor: new google.maps.Point(anchorX, anchorY) }
   });
 
+  // 投稿者本人なら削除ボタン表示（個別削除）
   const canDelete = (p.currentUserId && p.userId && p.currentUserId === p.userId);
   const html = `
     <div>
@@ -291,10 +352,33 @@ function addMarker(p){
     }
   });
 
-  if (p.id) markersById.set(p.id, marker);
+  if (p.id) {
+    markersById.set(p.id, marker);
+    postsById.set(p.id, p);
+  }
 }
 
-// 投稿
+// ====== ズーム変更で全アイコン再描画（軽量スロットリング） ======
+let _zoomRedrawTimer = null;
+function redrawIconsForZoom(){
+  if (_zoomRedrawTimer) return;
+  _zoomRedrawTimer = setTimeout(() => {
+    _zoomRedrawTimer = null;
+    const mode = getWrapModeByZoom(map.getZoom() || 18);
+    for (const [id, post] of postsById.entries()){
+      const marker = markersById.get(id);
+      if (!marker) continue;
+      const { url, totalW, totalH, anchorX, anchorY } = makeSpeechBubbleSVG(post.comment || '', post.color || 'pink', mode);
+      marker.setIcon({
+        url,
+        scaledSize: new google.maps.Size(totalW, totalH),
+        anchor: new google.maps.Point(anchorX, anchorY)
+      });
+    }
+  }, 80); // 80ms程度で十分
+}
+
+// ====== 投稿 ======
 document.getElementById('postBtn').addEventListener('click', onPost);
 
 async function onPost(){
@@ -340,6 +424,7 @@ async function onPost(){
     try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
     if (!json.ok) throw new Error(json.error || '投稿失敗');
 
+    // 即時反映
     addMarker({
       id: json.id,
       timestamp: now.toISOString(),
@@ -381,7 +466,7 @@ async function onPost(){
   }
 }
 
-// 削除
+// ====== 個別削除（本人のみ） ======
 async function deletePost(id){
   await ensureLiff();
   let currentUserId = 'guest';
@@ -406,6 +491,7 @@ async function deletePost(id){
 
     const mk = markersById.get(id);
     if (mk) { mk.setMap(null); markersById.delete(id); }
+    postsById.delete(id);
     setStatus('削除しました');
   } catch(e1){
     console.warn('DELETE json failed, fallback to text/plain:', e1);
@@ -422,6 +508,7 @@ async function deletePost(id){
 
       const mk = markersById.get(id);
       if (mk) { mk.setMap(null); markersById.delete(id); }
+      postsById.delete(id);
       setStatus('削除しました');
     } catch(e2){
       console.error('DELETE failed:', e2);
@@ -430,9 +517,100 @@ async function deletePost(id){
     }
   }
 }
+
+// ====== 非表示フィルタ（期限・色） ======
+document.getElementById('applyHide').addEventListener('click', applyHideFilters);
+document.getElementById('clearHide').addEventListener('click', clearHideFilters);
+
+function applyHideFilters(){
+  const hideExpired = document.getElementById('hideExpired').checked;
+  const hideColors = Array.from(document.querySelectorAll('.hideColor:checked')).map(el => el.value);
+  const now = Date.now();
+
+  for (const [id, post] of postsById.entries()){
+    const marker = markersById.get(id);
+    if (!marker) continue;
+    const expired = post.endAt ? new Date(post.endAt).getTime() < now : false;
+    const hideByExpired = hideExpired && expired;
+    const hideByColor = hideColors.includes(post.color);
+    marker.setVisible(!(hideByExpired || hideByColor));
+  }
+}
+function clearHideFilters(){
+  for (const marker of markersById.values()) marker.setVisible(true);
+  document.getElementById('hideExpired').checked = true;
+  document.querySelectorAll('.hideColor').forEach(el => el.checked = false);
+}
+
+// ====== 表示範囲（viewport）に見えている投稿ID抽出 ======
+function getVisiblePostIdsInViewport(){
+  const bounds = map.getBounds();
+  if (!bounds) return [];
+  const ids = [];
+  for (const [id, post] of postsById.entries()){
+    const pos = new google.maps.LatLng(post.lat, post.lng);
+    const mk  = markersById.get(id);
+    if (mk && mk.getVisible() && bounds.contains(pos)) ids.push(id);
+  }
+  return ids;
+}
+
+// ====== 一括削除（表示範囲の自分の投稿） ======
+document.getElementById('bulkDeleteMine').addEventListener('click', async () => {
+  await ensureLiff();
+  let currentUserId = 'guest';
+  try {
+    const profile = await liff.getProfile();
+    if (profile && profile.userId) currentUserId = profile.userId;
+  } catch(e){}
+
+  const idsInView = getVisiblePostIdsInViewport()
+    .filter(id => postsById.get(id)?.userId === currentUserId);
+
+  if (idsInView.length === 0) return alert('削除対象がありません（表示範囲に自分の投稿がありません）。');
+  if (!confirm(`表示範囲の自分の投稿 ${idsInView.length} 件を削除します。よろしいですか？`)) return;
+
+  await bulkDelete(idsInView, currentUserId);
+});
+
+async function bulkDelete(ids, currentUserId){
+  setStatus('一括削除中…');
+  const payload = { action: 'bulkDelete', ids, userId: currentUserId };
+  try {
+    let res  = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    let json = JSON.parse(await res.text());
+    if (!json.ok) throw new Error(json.error || '一括削除失敗');
+
+    // 地図／メモリから除去
+    ids.forEach(id => {
+      const mk = markersById.get(id);
+      if (mk) { mk.setMap(null); markersById.delete(id); }
+      postsById.delete(id);
+    });
+    setStatus(`削除しました（${ids.length}件）`);
+  } catch(e1){
+    console.warn('bulk delete failed, fallback to text/plain:', e1);
+    try {
+      let res  = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(payload) });
+      let json = JSON.parse(await res.text());
+      if (!json.ok) throw new Error(json.error || '一括削除失敗');
+
+      ids.forEach(id => {
+        const mk = markersById.get(id);
+        if (mk) { mk.setMap(null); markersById.delete(id); }
+        postsById.delete(id);
+      });
+      setStatus(`削除しました（${ids.length}件）`);
+    } catch(e2){
+      console.error('bulk delete failed:', e2);
+      alert('一括削除に失敗しました。時間をおいて再度お試しください。');
+      setStatus('削除エラー');
+    }
+  }
+}
 </script>
 
-<!-- ✅ 正しい Google Maps API 読み込み（async + defer + callback） -->
+<!-- 正しい Google Maps API 読み込み（async+defer+callback） -->
 <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap"></script>
 </body>
 </html>

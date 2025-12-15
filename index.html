@@ -3,29 +3,166 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ShiomiX イベントマップ（コメント投稿対応）</title>
+  <title>ShiomiX マップ（コメント投稿対応）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Leaflet（CDN） -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4Qxk8YsgJQvY7sMkS0nPAbQWwZ0p7pSp3geV2nE0XQ="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j7kLwAwE3vVtYzQWQYVjzUqF6oJgYkGkYFv0Xgc="
+    crossorigin=""
+  ></script>
   <style>
+    :root {
+      /* 吹き出しの淡い色（要望に合わせて淡色） */
+      --balloon-pink:   #ffd7e5; /* 淡いピンク */
+      --balloon-green:  #dff5dc; /* 淡い薄緑 */
+      --balloon-blue:   #daf0ff; /* 淡い水色 */
+      --balloon-yellow: #fff5cc; /* 淡い黄色 */
+      --balloon-gray:   #eeeeee; /* 淡いグレー */
+      --balloon-text:   #333;
+    }
+
     body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
-    h1 { font-size: 1.8em; color: #2e7d32; text-align: center; }
-    #map { width: 100%; height: 300px; margin-top: 20px; border-radius: 8px; }
+    h1 { font-size: 1.8em; color: #2e7d32; text-align: center; margin: 6px 0 10px; }
+    #map { width: 100%; height: 320px; margin-top: 8px; border-radius: 8px; }
     #post-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
-    textarea { width: 100%; min-height: 60px; font-size: 14px; }
-    button { padding: 12px 20px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
+    textarea { width: 100%; min-height: 68px; font-size: 14px; }
+    button { padding: 10px 16px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
     button:hover { background-color: #1b5e20; }
     #status { color:#666; margin-left:6px; font-size: 0.9em; }
     .small { font-size: 12px; color:#777; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+    .row label { font-size: 13px; }
+
+    /* ===== バルーン（吹き出し） =====
+       - “点”（dot）が左側、バルーン本体は右側に配置（左端合わせ）
+       - 枠線なし（border: none）
+       - LINEアイコン等の画像は一切表示しない */
+    .balloon-wrap {
+      position: relative;
+      width: max-content;
+      max-width: 240px; /* バルーンの横幅上限 */
+      transform: translateX(12px); /* 点の右隣にずらす */
+      /* LeafletのDivIconのコンテナとして使う */
+    }
+
+    .balloon {
+      border: none;                /* 枠なし */
+      border-radius: 10px;
+      padding: 8px 12px 8px 12px;
+      color: var(--balloon-text);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      font-size: 13px;
+      line-height: 1.4;
+      backdrop-filter: saturate(1.1);
+      /* 色はクラスで切替 */
+    }
+    .balloon.pink   { background: var(--balloon-pink); }
+    .balloon.green  { background: var(--balloon-green); }
+    .balloon.blue   { background: var(--balloon-blue); }
+    .balloon.yellow { background: var(--balloon-yellow); }
+    .balloon.gray   { background: var(--balloon-gray); }
+
+    /* 左側の“点”（▲から点への変更） */
+    .dot {
+      position: absolute;
+      left: -12px; /* バルーン左端から左へ（バルーン左端を点中央に近づける） */
+      top: 12px;   /* バルーン縦方向中央付近に調整 */
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #2e7d32; /* 点の色（地図上で見えやすい濃緑） */
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.8); /* 地図上で視認性を上げる白縁 */
+    }
+
+    /* バルーン内の操作行（削除ボタン & 残り時間） */
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #555;
+    }
+    .delete-btn {
+      background: #d84343;
+      border-radius: 4px;
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+    .delete-btn:hover { background: #b93636; }
+    .time-left { font-size: 11px; color: #666; }
+
+    /* 投稿フォームの色選択（チェックで色指定・同時選択防止） */
+    .color-options {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .color-options input[type="checkbox"] {
+      width: 16px; height: 16px; cursor: pointer;
+      vertical-align: middle;
+    }
+    .color-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 8px; border-radius: 6px; font-size: 12px; border: 1px solid #ccc;
+    }
+    .chip-pink   { background: var(--balloon-pink); }
+    .chip-green  { background: var(--balloon-green); }
+    .chip-blue   { background: var(--balloon-blue); }
+    .chip-yellow { background: var(--balloon-yellow); }
+    .chip-gray   { background: var(--balloon-gray); }
   </style>
 </head>
 <body>
 
-<h1>ShiomiX イベントマップ</h1>
+<h1>ShiomiX マップ</h1>
 <div id="map"></div>
 
 <!-- コメント投稿 -->
 <div id="post-panel">
   <p>現在地（または地図中心）を使ってコメントを投稿します。</p>
   <textarea id="comment" placeholder="例：混雑少なめ／イベント開始まで10分"></textarea>
+
+  <!-- 色選択（チェックで色指定：同時選択はJSで1色に制限） -->
+  <div class="row">
+    <span class="small">色を選択（淡色）：</span>
+    <div class="color-options" id="colorOptions">
+      <label class="color-chip chip-pink">
+        <input type="checkbox" name="balloonColor" value="pink" /> ピンク
+      </label>
+      <label class="color-chip chip-green">
+        <input type="checkbox" name="balloonColor" value="green" /> 薄緑
+      </label>
+      <label class="color-chip chip-blue">
+        <input type="checkbox" name="balloonColor" value="blue" /> 水色
+      </label>
+      <label class="color-chip chip-yellow">
+        <input type="checkbox" name="balloonColor" value="yellow" /> 黄色
+      </label>
+      <label class="color-chip chip-gray">
+        <input type="checkbox" name="balloonColor" value="gray" /> グレー
+      </label>
+    </div>
+  </div>
+
+  <!-- 表示時間（1/3/6/12/24時間から選択） -->
+  <div class="row">
+    <label for="ttl" class="small">表示時間：</label>
+    <select id="ttl">
+      <option value="1">1時間</option>
+      <option value="3">3時間</option>
+      <option value="6" selected>6時間</option>
+      <option value="12">12時間</option>
+      <option value="24">24時間</option>
+    </select>
+  </div>
+
   <div>
     <button id="postBtn">コメントを投稿</button>
     <span id="status"></span>
@@ -33,300 +170,153 @@
   <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
 </div>
 
-<!-- LIFF SDK -->
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<!-- （参考）LIFF SDK を使う場合はここに liff.init() 等を記述。アイコンは一切表示しない仕様に変更済み -->
 
 <script>
-/** 設定（埋め込み済み） **/
-const CONFIG = {
-  LIFF_ID: "2008298139-lwyMjbwP",
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyFIrGTYWNhTw7I0u5zK-uPDrzGxH_7xXUxbS-ptxoWBWJTPeE-lu6QLSN5jt35xSc/exec",
-  TTL_HOURS_TO_LOAD: 24
-};
+  // ===== 地図初期化 =====
+  const map = L.map('map');
+  // デフォルト中心（潮見駅付近）
+  const defaultCenter = [35.6568, 139.8286];
+  map.setView(defaultCenter, 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
 
-let map;
-
-// HTMLエスケープ（吹き出し内のXSS対策）
-const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-// ---- LIFF初期化（安全に待つ） ----
-let liffReady = (async function(){
-  try {
-    await liff.init({ liffId: CONFIG.LIFF_ID });
-    if (!liff.isLoggedIn()) liff.login();
-  } catch (e) {
-    console.warn('LIFF init error:', e);
-  }
-})();
-async function ensureLiff(){
-  try { await liffReady; } catch(e) {}
-}
-
-// ---- 地図初期化 ----
-async function initMap() {
-  const center = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
-  map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center, mapId: undefined });
-  // 参考の中心マーカーは不要ならコメントアウト可能
-  // new google.maps.Marker({ position: center, map, title: "潮見高架下" });
-  await loadPosts();
-}
-function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
-
-// 位置取得（失敗時は地図中心）
-async function getCurrentLatLng(){
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('no geolocation'));
-    navigator.geolocation.getCurrentPosition(
-      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      err => reject(err),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  });
-}
-
-// ---- 投稿一覧読み込み（GET） ----
-async function loadPosts(){
-  setStatus('読み込み中…');
-  try {
-    const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?ttlHours=${CONFIG.TTL_HOURS_TO_LOAD}`);
-    const raw = await res.text(); // RAWで受け取り
-    let json;
-    try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
-    if (!json.ok) throw new Error(json.error || 'failed');
-    json.data.forEach(addMarker);
-    setStatus(`読み込み完了（${json.data.length}件）`);
-  } catch (e) {
-    console.error('loadPosts error:', e);
-    setStatus('読み込み失敗');
-  }
-}
-
-/** ========= 吹き出しマーカー生成 =========
- * 参考画像風レイアウト：
- * [丸アイコン] [角丸吹き出し + コメントテキスト] + 下側にしっぽ
- * - テキスト幅に合わせてSVGを動的生成
- * - DPI依存を避けるため、サイズはベクターで指定
- */
-const DEFAULT_AVATAR_FILL = '#5b86e5'; // デフォルト丸アイコン色（画像がない場合）
-const BUBBLE_BG = '#ffffff';
-const BUBBLE_BORDER = '#2e7d32';
-const TEXT_COLOR = '#333333';
-const SHADOW = 'rgba(0,0,0,0.15)';
-
-function measureLines(text, maxCharsPerLine = 14){
-  // ざっくりした折返し（日本語想定：等幅ではないがモバイルで見やすい程度に）
-  const words = text.split(/\s+/);
-  const lines = [];
-  let line = '';
-  for (const w of words){
-    if ((line + ' ' + w).trim().length > maxCharsPerLine){
-      if (line) lines.push(line);
-      // 長い連続文字（絵文字・句読点なし）にも対応：必要なら強制分割
-      if (w.length > maxCharsPerLine){
-        let start = 0;
-        while (start < w.length){
-          lines.push(w.slice(start, start + maxCharsPerLine));
-          start += maxCharsPerLine;
-        }
-        line = '';
-      } else {
-        line = w;
-      }
-    } else {
-      line = (line ? line + ' ' : '') + w;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-/** SVG生成：コメントから吹き出しを作る */
-function makeSpeechBubbleSVG(comment, avatarUrl){
-  const text = esc(comment);
-  const lines = measureLines(text, 14);
-  const lineHeight = 18;     // px
-  const paddingX = 10;       // テキスト左右パディング
-  const paddingY = 10;       // テキスト上下パディング
-  const avatarSize = 28;     // 左の丸（または画像）サイズ
-  const gap = 8;             // 丸と吹き出しの間
-  const tailW = 14;          // しっぽ幅
-  const tailH = 10;          // しっぽ高さ
-  const radius = 12;         // 吹き出し角の半径
-  const strokeW = 2;         // 枠線の太さ
-
-  const textWidth = Math.max(...lines.map(s => Math.max(16, s.length))) * 7; // ざっくり幅
-  const bubbleW = Math.max(60, textWidth + paddingX * 2);
-  const bubbleH = lines.length * lineHeight + paddingY * 2;
-
-  const totalW = avatarSize + gap + bubbleW;
-  const totalH = Math.max(avatarSize, bubbleH) + tailH;
-
-  // SVGの原点（0,0）は左上。マーカーの"指し位置"を下中央にしたいので、後でanchorで調整
-  // しっぽは吹き出し下辺の右寄りに描く（見栄え優先）
-  const tailX = avatarSize + gap + bubbleW * 0.7;
-  const tailY = bubbleH;
-
-  // 影（フィルター）
-  const svg =
-`<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
-  <defs>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="${SHADOW}" flood-opacity="1"/>
-    </filter>
-    ${avatarUrl ? '' : `
-      <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${DEFAULT_AVATAR_FILL}"/>
-        <stop offset="100%" stop-color="#4f65c6"/>
-      </linearGradient>
-    `}
-  </defs>
-
-  <!-- 左の丸アイコン -->
-  ${avatarUrl
-    ? `<clipPath id="clipCircle"><circle cx="${avatarSize/2}" cy="${bubbleH/2}" r="${avatarSize/2}"/></clipPath>
-       <image href="${avatarUrl}" x="0" y="${bubbleH/2 - avatarSize/2}" width="${avatarSize}" height="${avatarSize}" clip-path="url(#clipCircle)"></image>
-       <circle cx="${avatarSize/2}" cy="${bubbleH/2}" r="${avatarSize/2}" fill="none" stroke="${BUBBLE_BORDER}" stroke-width="2"/>`
-    : `<circle cx="${avatarSize/2}" cy="${bubbleH/2}" r="${avatarSize/2}" fill="url(#grad)" stroke="${BUBBLE_BORDER}" stroke-width="2"/>`
-  }
-
-  <!-- 吹き出し本体 -->
-  <g filter="url(#shadow)">
-    <rect x="${avatarSize + gap}" y="0" rx="${radius}" ry="${radius}" width="${bubbleW}" height="${bubbleH}"
-          fill="${BUBBLE_BG}" stroke="${BUBBLE_BORDER}" stroke-width="${strokeW}"/>
-    <!-- しっぽ -->
-    <path d="M ${tailX} ${tailY}
-             l ${tailW/2} ${tailH}
-             l ${-tailW} 0
-             Z"
-          fill="${BUBBLE_BG}" stroke="${BUBBLE_BORDER}" stroke-width="${strokeW}"/>
-  </g>
-
-  <!-- テキスト -->
-  <g font-family="Segoe UI, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif"
-     font-size="14" fill="${TEXT_COLOR}">
-     ${lines.map((ln, i) => {
-       const tx = avatarSize + gap + paddingX;
-       const ty = paddingY + (i+1) * lineHeight - 4; // 微調整
-       return `<text x="${tx}" y="${ty}">${ln}</text>`;
-     }).join('\n')}
-  </g>
-</svg>`;
-
-  // Data URLへ
-  const svg64 = btoa(unescape(encodeURIComponent(svg)));
-  const url = `data:image/svg+xml;base64,${svg64}`;
-  return {
-    url,
-    totalW,
-    totalH,
-    anchorX: (avatarSize + gap + bubbleW * 0.7), // しっぽの付け根あたり
-    anchorY: bubbleH + tailH
-  };
-}
-
-/** マーカー追加（アイコンを吹き出しに） */
-function addMarker(p){
-  const position = { lat: p.lat, lng: p.lng };
-  const avatarUrl = p.avatarUrl || null; // 将来的にプロフィール画像を渡せる
-  const { url, totalW, totalH, anchorX, anchorY } = makeSpeechBubbleSVG(p.comment || '', avatarUrl);
-
-  const marker = new google.maps.Marker({
-    position,
-    map,
-    // アイコンをSVG data URLで設定
-    icon: {
-      url,
-      scaledSize: new google.maps.Size(totalW, totalH),
-      anchor: new google.maps.Point(anchorX, anchorY) // しっぽ先を位置合わせに
-    },
-    // 既存のタイトル等は不要
-  });
-
-  // クリックで詳細（タイムスタンプ）を補足表示したい場合のみInfoWindow
-  if (p.timestamp){
-    const info = new google.maps.InfoWindow({
-      content: `<div><b>${esc(p.comment)}</b><br>${new Date(p.timestamp).toLocaleString()}</div>`
+  // 位置取得
+  function getCurrentLatLng() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(map.getCenter());
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve([pos.coords.latitude, pos.coords.longitude]),
+        ()  => resolve(map.getCenter()),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
     });
-    marker.addListener('click', () => info.open({ anchor: marker, map }));
-  }
-}
-
-// ---- 投稿（POST：application/json → 失敗時 text/plainにフォールバック） ----
-document.getElementById('postBtn').addEventListener('click', onPost);
-
-async function onPost(){
-  await ensureLiff();
-
-  const commentEl = document.getElementById('comment');
-  const comment = commentEl.value.trim();
-  if (!comment) return alert('コメントを入力してください');
-
-  setStatus('投稿中…');
-
-  // ユーザー識別（LIFF未ログインやエラー時は guest で代替）
-  let userId = 'guest';
-  let avatarUrl = null;
-  try {
-    const profile = await liff.getProfile();
-    if (profile && profile.userId) userId = profile.userId;
-    // 画像があれば使う（参考画像の左丸内）
-    if (profile && profile.pictureUrl) avatarUrl = profile.pictureUrl;
-  } catch(e) {
-    console.warn('getProfile error:', e);
   }
 
-  // 位置情報（失敗時は地図中心）
-  let pos;
-  try {
-    pos = await getCurrentLatLng();
-  } catch(e) {
-    pos = map.getCenter().toJSON();
-  }
-
-  const payload = { userId, lat: pos.lat, lng: pos.lng, comment, avatarUrl };
-
-  try {
-    // まず application/json で送信
-    let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    let raw = await res.text();
-    let json;
-    try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
-    if (!json.ok) throw new Error(json.error || '投稿失敗');
-
-    // 反映（即時表示）
-    addMarker({ timestamp: new Date().toISOString(), lat: pos.lat, lng: pos.lng, comment, avatarUrl });
-    commentEl.value = '';
-    setStatus('投稿しました');
-  } catch (e1) {
-    console.warn('POST (json) failed, fallback to text/plain:', e1);
-    try {
-      // 事前フライト環境での回避策：text/plain で再送
-      let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
+  // ===== 投稿UI：色はチェックで1色だけ選べるように制御 =====
+  const colorOptions = document.getElementById('colorOptions');
+  colorOptions.addEventListener('change', (e) => {
+    if (e.target.name === 'balloonColor') {
+      // 他のチェックを外す（1色限定）
+      [...colorOptions.querySelectorAll('input[name="balloonColor"]')].forEach(cb => {
+        if (cb !== e.target) cb.checked = false;
       });
-      let raw = await res.text();
-      let json;
-      try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
-      if (!json.ok) throw new Error(json.error || '投稿失敗');
-
-      addMarker({ timestamp: new Date().toISOString(), lat: pos.lat, lng: pos.lng, comment, avatarUrl });
-      commentEl.value = '';
-      setStatus('投稿しました');
-    } catch (e2) {
-      console.error('POST failed:', e2);
-      alert('投稿に失敗しました。時間をおいて再度お試しください。');
-      setStatus('投稿エラー');
     }
+  });
+  function selectedColor() {
+    const checked = colorOptions.querySelector('input[name="balloonColor"]:checked');
+    return checked ? checked.value : 'pink'; // 未選択時はピンクを既定
   }
-}
+
+  // ===== コメント管理（削除・TTL） =====
+  const comments = new Map(); // id -> { marker, deadline, interval }
+
+  function makeBalloonHTML(text, color, ttlHours, id) {
+    // 残り時間の表示用（分更新）
+    return `
+      <div class="balloon-wrap">
+        <div class="dot"></div>
+        <div class="balloon ${color}">
+          <div>${escapeHTML(text)}</div>
+          <div class="meta">
+            <button class="delete-btn" data-id="${id}">削除</button>
+            <span class="time-left" id="tl-${id}"></span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function escapeHTML(s) {
+    return s.replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
+  function addComment(latlng, text, color, ttlHours) {
+    const id = 'c' + Date.now() + Math.floor(Math.random()*1000);
+    const html = makeBalloonHTML(text, color, ttlHours, id);
+
+    // DivIconで“点＋右側バルーン”（左端合わせ）を作る
+    const icon = L.divIcon({
+      html,
+      className: 'balloon-icon', // 既定の影響を避けるダミークラス
+      iconSize: null,
+      iconAnchor: [0, 16] // “点”のあたりをアンカー基準（左端合わせの再現）
+    });
+    const marker = L.marker(latlng, { icon }).addTo(map);
+
+    const deadline = Date.now() + ttlHours*60*60*1000;
+    // 残り時間の表示更新（1分毎）
+    const interval = setInterval(() => updateTimeLeft(id, deadline), 60*1000);
+    updateTimeLeft(id, deadline); // 初期表示
+
+    // 削除イベント委譲（バルーン内ボタン）
+    marker.on('click', (ev) => {
+      const target = ev.originalEvent.target;
+      if (target && target.matches('.delete-btn')) {
+        const delId = target.getAttribute('data-id');
+        removeComment(delId);
+        ev.originalEvent.stopPropagation();
+      }
+    });
+
+    // TTL到達で削除
+    const ttlTimer = setTimeout(() => removeComment(id), ttlHours*60*60*1000);
+
+    comments.set(id, { marker, deadline, interval, ttlTimer });
+    return id;
+  }
+
+  function updateTimeLeft(id, deadline) {
+    const el = document.getElementById('tl-' + id);
+    if (!el) return;
+    const ms = deadline - Date.now();
+    if (ms <= 0) {
+      el.textContent = '期限切れ';
+      return;
+    }
+    const totalMin = Math.ceil(ms / (60*1000));
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    el.textContent = h > 0 ? `残り ${h}時間${m}分` : `残り ${m}分`;
+  }
+
+  function removeComment(id) {
+    const item = comments.get(id);
+    if (!item) return;
+    map.removeLayer(item.marker);
+    clearInterval(item.interval);
+    clearTimeout(item.ttlTimer);
+    comments.delete(id);
+  }
+
+  // ===== 投稿ボタン =====
+  const postBtn = document.getElementById('postBtn');
+  const status = document.getElementById('status');
+  postBtn.addEventListener('click', async () => {
+    const text = document.getElementById('comment').value.trim();
+    if (!text) {
+      status.textContent = 'コメントを入力してください';
+      return;
+    }
+    const ttlHours = parseInt(document.getElementById('ttl').value, 10);
+    const color = selectedColor();
+
+    // 現在地 or 地図中心
+    const latlng = await getCurrentLatLng();
+
+    const id = addComment(latlng, text, color, ttlHours);
+    status.textContent = '投稿しました';
+    document.getElementById('comment').value = '';
+    // 自動で中心へ移動（任意）
+    map.panTo(latlng);
+    // 数秒後にステータス消去
+    setTimeout(() => status.textContent = '', 2500);
+  });
+
+  // ===== 参考：既存コメント復元（サーバー連携時）
+  // LIFFやPower Pages経由で保存する場合は、ロード時に addComment() を呼んでください。
 </script>
 
-<!-- Google Maps API（APIキー組み込み。async+defer推奨） -->
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap"></script>
 </body>
+</html>

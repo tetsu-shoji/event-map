@@ -3,329 +3,160 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ShiomiX マップ（コメント投稿対応）</title>
+  <title>ShiomiXマップ（コメント投稿対応）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
   <style>
-    :root {
-      --balloon-pink:   #ffd7e5;
-      --balloon-green:  #dff5dc;
-      --balloon-blue:   #daf0ff;
-      --balloon-yellow: #fff5cc;
-      --balloon-gray:   #eeeeee;
-      --balloon-text:   #333;
-      --dot-color:      #2e7d32;
-    }
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
+    h1 { font-size: 1.8em; color: #2e7d32; text-align: center; }
+    /* 縦を2倍に */
+    #map { width: 100%; height: 600px; margin-top: 20px; border-radius: 8px; }
 
-    /* 画面いっぱい（フルスクリーン） */
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: #f4f6f8;
-      font-family: 'Segoe UI', sans-serif;
-      color: #333;
-    }
-    #app {
-      display: grid;
-      grid-template-rows: auto 1fr auto; /* 見出し / 地図 / 投稿パネル */
-      height: 100vh;
-    }
-    h1 {
-      font-size: 1.6em;
-      color: #2e7d32;
-      text-align: center;
-      margin: 8px 0;
-    }
-    #map { width: 100%; height: 100%; }
-
-    #post-panel {
-      background:#fff; border-top:1px solid #ddd; padding:10px;
-    }
-    textarea { width: 100%; min-height: 68px; font-size: 14px; }
-    button {
-      padding: 10px 16px; margin: 6px 4px 4px 0;
-      background-color: #2e7d32; color: white; border: none;
-      border-radius: 6px; font-size: 1em; cursor: pointer;
-    }
+    #post-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
+    textarea { width: 100%; min-height: 60px; font-size: 14px; }
+    button { padding: 10px 16px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
     button:hover { background-color: #1b5e20; }
     #status { color:#666; margin-left:6px; font-size: 0.9em; }
     .small { font-size: 12px; color:#777; }
-    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 
-    /* 吹き出し（枠なし／点→右側） */
-    .balloon-wrap {
-      position: relative;
-      width: max-content;
-      max-width: 260px;
-      transform: translateX(12px); /* 点の右隣にずらし、左端合わせを再現 */
-      pointer-events: auto;
-      font-size: 13px; line-height: 1.4;
+    /* カラー選択のラジオボタン（見た目重視） */
+    .color-swatch { display:inline-flex; align-items:center; gap:6px; margin-right:10px; cursor:pointer; }
+    .swatch {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 1px solid #bbb; display:inline-block;
     }
-    .balloon {
-      border: none; border-radius: 12px;
-      padding: 8px 12px; color: var(--balloon-text);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-    }
-    .balloon.pink   { background: var(--balloon-pink); }
-    .balloon.green  { background: var(--balloon-green); }
-    .balloon.blue   { background: var(--balloon-blue); }
-    .balloon.yellow { background: var(--balloon-yellow); }
-    .balloon.gray   { background: var(--balloon-gray); }
-
-    .dot {
-      position: absolute; left: -12px; top: 14px;
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--dot-color);
-      box-shadow: 0 0 0 2px rgba(255,255,255,0.9);
-    }
-
-    .meta {
-      display: flex; align-items: center; gap: 8px;
-      margin-top: 6px; font-size: 12px; color: #555;
-    }
-    .delete-btn {
-      background: #d84343; border-radius: 4px;
-      font-size: 12px; padding: 4px 8px; color: #fff;
-      border: none; cursor: pointer;
-    }
-    .delete-btn:hover { background: #b93636; }
-    .time-left { font-size: 11px; color: #666; }
-
-    .color-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-    .color-chip { display: inline-flex; align-items: center; gap: 6px;
-      padding: 4px 8px; border-radius: 6px; font-size: 12px; border: 1px solid #ccc; }
-    .chip-pink   { background: var(--balloon-pink); }
-    .chip-green  { background: var(--balloon-green); }
-    .chip-blue   { background: var(--balloon-blue); }
-    .chip-yellow { background: var(--balloon-yellow); }
-    .chip-gray   { background: var(--balloon-gray); }
-
-    .overlay-container { position: absolute; }
+    .danger { background:#c62828; }
+    .danger:hover { background:#8e0000; }
   </style>
 </head>
 <body>
-  <div id="app">
-    <h1>ShiomiX マップ</h1>
-    <div id="map"></div>
 
-    <div id="post-panel">
-      <p>現在地（または地図中心）を使ってコメントを投稿します。</p>
-      <textarea id="comment" placeholder="例：混雑少なめ／開始まで10分"></textarea>
+<h1>ShiomiXマップ</h1>
+<div id="map"></div>
 
-      <div class="row">
-        <span class="small">色（淡色）:</span>
-        <div class="color-options" id="colorOptions">
-          <label class="color-chip chip-pink">
-            <input type="checkbox" name="balloonColor" value="pink" /> ピンク
-          </label>
-          <label class="color-chip chip-green">
-            <input type="checkbox" name="balloonColor" value="green" /> 薄緑
-          </label>
-          <label class="color-chip chip-blue">
-            <input type="checkbox" name="balloonColor" value="blue" /> 水色
-          </label>
-          <label class="color-chip chip-yellow">
-            <input type="checkbox" name="balloonColor" value="yellow" /> 黄色
-          </label>
-          <label class="color-chip chip-gray">
-            <input type="checkbox" name="balloonColor" value="gray" /> グレー
-          </label>
-        </div>
-      </div>
+<!-- コメント投稿 -->
+<div id="post-panel">
+  <p>現在地（または地図中心）を使ってコメントを投稿します。</p>
 
-      <div class="row">
-        <label for="ttl" class="small">表示時間：</label>
-        <select id="ttl">
-          <option value="1">1時間</option>
-          <option value="3">3時間</option>
-          <option value="6" selected>6時間</option>
-          <option value="12">12時間</option>
-          <option value="24">24時間</option>
-        </select>
-      </div>
+  <textarea id="comment" placeholder="例：混雑少なめ／イベント開始まで10分"></textarea>
 
-      <div>
-        <button id="postBtn">コメントを投稿</button>
-        <span id="status"></span>
-      </div>
-      <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
-    </div>
+  <!-- 色選択（枠なし・淡色） -->
+  <div class="row" aria-label="吹き出し色の選択">
+    <span class="small">色：</span>
+    <label class="color-swatch">
+      <input type="radio" name="bubbleColor" value="pink" checked>
+      <span class="swatch" style="background:#ffd1dc"></span>ピンク
+    </label>
+    <label class="color-swatch">
+      <input type="radio" name="bubbleColor" value="green">
+      <span class="swatch" style="background:#d7f5d1"></span>薄緑
+    </label>
+    <label class="color-swatch">
+      <input type="radio" name="bubbleColor" value="blue">
+      <span class="swatch" style="background:#d7efff"></span>水色
+    </label>
+    <label class="color-swatch">
+      <input type="radio" name="bubbleColor" value="yellow">
+      <span class="swatch" style="background:#fff2c6"></span>黄色
+    </label>
+    <label class="color-swatch">
+      <input type="radio" name="bubbleColor" value="gray">
+      <span class="swatch" style="background:#e6e6e6"></span>グレー
+    </label>
   </div>
 
-  <!-- Google Maps JS API（提供いただいたキーを使用） -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&v=quarterly" defer></script>
+  <!-- 表示時間プリセット -->
+  <div class="row">
+    <label for="duration">表示時間：</label>
+    <select id="duration">
+      <option value="1">1時間</option>
+      <option value="3">3時間</option>
+      <option value="6">6時間</option>
+      <option value="12">12時間</option>
+      <option value="24">24時間</option>
+    </select>
+  </div>
 
-  <script>
-    const defaultCenter = { lat: 35.6568, lng: 139.8286 }; // 潮見駅付近
-    const comments = new Map(); // id -> { overlay, deadline, interval, ttlTimer }
+  <div class="row">
+    <button id="postBtn">コメントを投稿</button>
+    <span id="status"></span>
+  </div>
+  <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
+</div>
 
-    function escapeHTML(s) {
-      return s.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-    }
+<!-- LIFF SDK（正しいscriptタグ） -->
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-    // 色チェックは1つだけ
-    const colorOptions = document.getElementById('colorOptions');
-    colorOptions.addEventListener('change', (e) => {
-      if (e.target.name === 'balloonColor') {
-        [...colorOptions.querySelectorAll('input[name="balloonColor"]')].forEach(cb => {
-          if (cb !== e.target) cb.checked = false;
-        });
-      }
+<script>
+/** 設定 **/
+const CONFIG = {
+  LIFF_ID: "2008298139-lwyMjbwP",
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyFIrGTYWNhTw7I0u5zK-uPDrzGxH_7xXUxbS-ptxoWBWJTPeE-lu6QLSN5jt35xSc/exec",
+  TTL_HOURS_TO_LOAD: 24
+};
+
+let map;
+const markersById = new Map(); // id -> marker
+
+// 淡色カラーマップ（枠なし）
+const BUBBLE_COLORS = {
+  pink:   '#ffd1dc',
+  green:  '#d7f5d1',
+  blue:   '#d7efff',
+  yellow: '#fff2c6',
+  gray:   '#e6e6e6'
+};
+
+// HTMLエスケープ
+const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ---- LIFF初期化 ----
+let liffReady = (async function(){
+  try {
+    await liff.init({ liffId: CONFIG.LIFF_ID });
+    if (!liff.isLoggedIn()) liff.login();
+  } catch (e) {
+    console.warn('LIFF init error:', e);
+  }
+})();
+async function ensureLiff(){ try { await liffReady; } catch(e) {} }
+
+// ---- 地図初期化（起動時に現在地へセンタリング） ----
+async function initMap() {
+  const fallback = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 18,
+    center: fallback
+  });
+
+  try {
+    const me = await getCurrentLatLng();
+    map.setCenter(me);
+    // 現在地の青ドット
+    new google.maps.Marker({
+      position: me,
+      map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: '#4285F4',
+        fillOpacity: 0.9,
+        strokeColor: '#ffffff',
+        strokeWeight: 2,
+        scale: 8
+      },
+      title: '現在地'
     });
-    function selectedColor() {
-      const checked = colorOptions.querySelector('input[name="balloonColor"]:checked');
-      return checked ? checked.value : 'pink';
-    }
+  } catch(e) {
+    // 位置取得失敗時はフォールバック中心のまま
+    console.warn('current position not available:', e);
+  }
 
-    let map;
-    document.addEventListener('DOMContentLoaded', async () => {
-      await waitForGoogleMaps();
+  await loadPosts();
+}
 
-      map = new google.maps.Map(document.getElementById('map'), {
-        center: defaultCenter, zoom: 15, mapTypeId: 'roadmap',
-        clickableIcons: false, disableDefaultUI: false
-      });
+function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
 
-      // 現在地へズーム（任意）
-      try {
-        const pos = await getCurrentLatLng();
-        map.setCenter(pos);
-      } catch {}
-
-      document.getElementById('postBtn').addEventListener('click', async () => {
-        const text = document.getElementById('comment').value.trim();
-        const status = document.getElementById('status');
-        if (!text) { status.textContent = 'コメントを入力してください'; return; }
-
-        const color = selectedColor();
-        const ttlHours = parseInt(document.getElementById('ttl').value, 10);
-
-        let latlng;
-        try {
-          latlng = await getCurrentLatLng();
-        } catch {
-          latlng = map.getCenter().toJSON();
-        }
-
-        const id = addComment(latlng, text, color, ttlHours);
-        status.textContent = '投稿しました';
-        document.getElementById('comment').value = '';
-        map.panTo(latlng);
-        setTimeout(() => status.textContent = '', 2500);
-      });
-    });
-
-    function waitForGoogleMaps() {
-      return new Promise((resolve) => {
-        const check = () => {
-          if (window.google && window.google.maps) resolve();
-          else setTimeout(check, 50);
-        };
-        check();
-      });
-    }
-
-    function getCurrentLatLng() {
-      return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) return reject();
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          ()  => reject(),
-          { enableHighAccuracy: true, timeout: 5000 }
-        );
-      });
-    }
-
-    // ===== 吹き出し Overlay（点→右側、枠なし、削除＆TTL） =====
-    class BalloonOverlay extends google.maps.OverlayView {
-      constructor(position, html, id) {
-        super();
-        this.position = position; this.html = html; this.id = id;
-        this.container = null;
-      }
-      onAdd() {
-        this.container = document.createElement('div');
-        this.container.className = 'overlay-container';
-        this.container.innerHTML = this.html;
-        this.container.addEventListener('click', (ev) => {
-          const t = ev.target;
-          if (t && t.matches('.delete-btn')) {
-            const delId = t.getAttribute('data-id');
-            removeComment(delId);
-            ev.stopPropagation();
-          }
-        });
-        const panes = this.getPanes();
-        panes.overlayMouseTarget.appendChild(this.container);
-      }
-      draw() {
-        const projection = this.getProjection();
-        if (!projection || !this.container) return;
-        const point = projection.fromLatLngToDivPixel(
-          new google.maps.LatLng(this.position.lat, this.position.lng)
-        );
-        const x = point.x;
-        const y = point.y;
-        this.container.style.left = `${x}px`;
-        this.container.style.top  = `${y}px`;
-        this.container.style.transform = 'translate(-0px, -16px)'; // 見やすい高さに
-      }
-      onRemove() {
-        if (this.container && this.container.parentNode) {
-          this.container.parentNode.removeChild(this.container);
-        }
-        this.container = null;
-      }
-    }
-
-    function makeBalloonHTML(text, color, ttlHours, id) {
-      return `
-        <div class="balloon-wrap">
-          <div class="dot"></div>
-          <div class="balloon ${color}">
-            <div>${escapeHTML(text)}</div>
-            <div class="meta">
-              <button class="delete-btn" data-id="${id}">削除</button>
-              <span class="time-left" id="tl-${id}"></span>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    function addComment(latlng, text, color, ttlHours) {
-      const id = 'c' + Date.now() + Math.floor(Math.random()*1000);
-      const html = makeBalloonHTML(text, color, ttlHours, id);
-      const overlay = new BalloonOverlay(latlng, html, id);
-      overlay.setMap(map);
-
-      const deadline = Date.now() + ttlHours*60*60*1000;
-      const interval = setInterval(() => updateTimeLeft(id, deadline), 60*1000);
-      updateTimeLeft(id, deadline);
-      const ttlTimer = setTimeout(() => removeComment(id), ttlHours*60*60*1000);
-
-      comments.set(id, { overlay, deadline, interval, ttlTimer });
-      return id;
-    }
-
-    function updateTimeLeft(id, deadline) {
-      const el = document.getElementById('tl-' + id);
-      if (!el) return;
-      const ms = deadline - Date.now();
-      if (ms <= 0) { el.textContent = '期限切れ'; return; }
-      const totalMin = Math.ceil(ms / (60*1000));
-      const h = Math.floor(totalMin / 60);
-      const m = totalMin % 60;
-      el.textContent = h > 0 ? `残り ${h}時間${m}分` : `残り ${m}分`;
-    }
-
-    function removeComment(id) {
-      const item = comments.get(id);
-      if (!item) return;
-      item.overlay.setMap(null);
-      clearInterval(item.interval);
-      clearTimeout(item.ttlTimer);
-      comments.delete(id);
-    }
-  </script>
-</body>
+// 位置取得（失敗時は地図中心）
+async function getCurrentLatLng(){
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('no geolocation'));

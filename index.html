@@ -131,8 +131,8 @@
 <script>
 /** 設定 **/
 const CONFIG = {
-  LIFF_ID: "2008298139-lwyMjbwP",
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyFIrGTYWNhTw7I0u5zK-uPDrzGxH_7xXUxbS-ptxoWBWJTPeE-lu6QLSN5jt35xSc/exec",
+  LIFF_ID: '2008298139-lwyMjbwP',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyFIrGTYWNhTw7I0u5zK-uPDrzGxH_7xXUxbS-ptxoWBWJTPeE-lu6QLSN5jt35xSc/exec',
   TTL_HOURS_TO_LOAD: 24
 };
 
@@ -236,7 +236,7 @@ async function loadPosts(){
     markersById.clear();
     postsById.clear();
 
-    // 描画＆保持（サーバ側で期限切れは非返却だが、そのまま受け取る）
+    // 描画＆保持
     json.data.forEach(p => { postsById.set(p.id, p); addMarker(p); });
     setStatus(`読み込み完了（${json.data.length}件）`);
   } catch (e) {
@@ -265,37 +265,89 @@ function measureLines(text, maxCharsPerLine = 14){
 }
 function getWrapModeByZoom(zoom){ return (zoom <= 16) ? 'single' : 'multi'; }
 
-// ---- 吹き出しSVG生成（点→右側、枠なし淡色） ----
-function makeSpeechBubbleSVG(comment, colorKey, mode){
+// ---- ★ 吹き出しSVG生成（黒枠あり／点は左下・白縁／わずかなスキマ） ----
+function makeSpeechBubbleSVG(comment, colorKey, mode /* 'single' | 'multi' */){
   const bubbleColor = BUBBLE_COLORS[colorKey] || BUBBLE_COLORS.pink;
   const textRaw = esc(comment || '');
   const lines = (mode === 'single') ? [ellipsis(textRaw, 20)] : measureLines(textRaw, 14);
 
-  const lineHeight = 18, paddingX = 10, paddingY = 10, dotR = 6, radius = 12;
+  // レイアウト定数
+  const lineHeight = 18;
+  const paddingX  = 10;
+  const paddingY  = 10;
+  const radius    = 12;
+
+  const dotR      = 6;           // ドット半径
+  const dotGap    = 2;           // ← 吹き出しとドットのスキマ（px）
+  const dotFill   = '#333333';   // ドット塗り
+  const dotStroke = '#ffffff';   // 白縁
+  const dotStrokeW= 2;
+
+  const strokeW   = 1.2;         // 吹き出し黒枠の太さ
+  const strokeCol = '#000000';
   const shadowColor = 'rgba(0,0,0,0.18)';
-  const longest = Math.max(...lines.map(s => Math.max(16, s.length)));
-  const charW = (mode === 'single') ? 7.2 : 7;
+
+  // 幅計算
+  const longest   = Math.max(...lines.map(s => Math.max(16, s.length)));
+  const charW     = (mode === 'single') ? 7.2 : 7;
   const textWidth = Math.max(16, longest) * charW;
+
+  // 吹き出しサイズ
   const bubbleW = Math.max(60, textWidth + paddingX * 2);
   const bubbleH = lines.length * lineHeight + paddingY * 2;
 
-  const leftPad = dotR, bubbleX = leftPad, bubbleY = 0;
-  const dotCX = bubbleX, dotCY = bubbleY + bubbleH / 2;
-  const totalW = leftPad + bubbleW, totalH = bubbleH;
+  // キャンバス余白（左・下はドット半径＋スキマ分確保）
+  const leftPad   = dotR + dotGap;
+  const bottomPad = dotR + dotGap;
+
+  // 吹き出しの左上
+  const bubbleX = leftPad;
+  const bubbleY = 0;
+
+  // ★ ドット中心＝吹き出し左下の外側（スキマ分だけ外へ）
+  const dotCX = bubbleX - dotGap;             // 左端から dotGap 外へ
+  const dotCY = bubbleY + bubbleH + dotGap;   // 下端から dotGap 外へ
+
+  // 全体サイズ
+  const totalW = leftPad + bubbleW;
+  const totalH = bubbleH + bottomPad;
 
   const svg =
 `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
-  <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-    <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="${shadowColor}" flood-opacity="1"/>
-  </filter></defs>
-  <g filter="url(#shadow)"><rect x="${bubbleX}" y="${bubbleY}" rx="${radius}" ry="${radius}" width="${bubbleW}" height="${bubbleH}" fill="${bubbleColor}"/></g>
-  <circle cx="${dotCX}" cy="${dotCY}" r="${dotR}" fill="#333333" />
-  <g font-family="Segoe UI, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif" font-size="14" fill="#333333">
-    ${lines.map((ln, i) => `<text x="${bubbleX + paddingX}" y="${paddingY + (i+1)*lineHeight - 4}">${ln}</text>`).join('\n')}
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="${shadowColor}" flood-opacity="1"/>
+    </filter>
+  </defs>
+
+  <!-- 影＋黒枠あり角丸矩形（吹き出し本体） -->
+  <g filter="url(#shadow)">
+    <rect x="${bubbleX}" y="${bubbleY}"
+          rx="${radius}" ry="${radius}"
+          width="${bubbleW}" height="${bubbleH}"
+          fill="${bubbleColor}"
+          stroke="${strokeCol}" stroke-width="${strokeW}" />
+  </g>
+
+  <!-- 左下の点（白縁＋塗り） -->
+  <circle cx="${dotCX}" cy="${dotCY}" r="${dotR}" fill="${dotFill}" stroke="${dotStroke}" stroke-width="${dotStrokeW}" />
+
+  <!-- テキスト -->
+  <g font-family="Segoe UI, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif"
+     font-size="14" fill="#333333">
+    ${lines.map((ln, i) => {
+      const tx = bubbleX + paddingX;
+      const ty = paddingY + (i+1) * lineHeight - 4;
+      return `<text x="${tx}" y="${ty}">${ln}</text>`;
+    }).join('\n')}
   </g>
 </svg>`;
+
   const svg64 = btoa(unescape(encodeURIComponent(svg)));
-  return { url:`data:image/svg+xml;base64,${svg64}`, totalW, totalH, anchorX:dotCX, anchorY:dotCY };
+  const url = `data:image/svg+xml;base64,${svg64}`;
+
+  // マップ座標のアンカー＝ドット中心
+  return { url, totalW, totalH, anchorX: dotCX, anchorY: dotCY };
 }
 
 // ---- マーカー追加（モード適用／個別削除ボタン） ----
@@ -551,7 +603,8 @@ async function bulkDelete(ids, userId){
 }
 </script>
 
-<!-- Google Maps API -->
+<!-- Google Maps API（async+defer+callback） -->
 <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap"></script>
 </body>
 </html>
+``

@@ -3,30 +3,32 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ShiomiXマップ（ズーム連動＆一括削除対応）</title>
+  <title>ShiomiXマップ（管理者削除対応・完全版）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; margin: 10px; color: #333; }
     h1 { font-size: 1.8em; color: #2e7d32; text-align: center; }
-    /* 地図高さを2倍（600px） */
     #map { width: 100%; height: 600px; margin-top: 20px; border-radius: 8px; }
 
-    #post-panel, #cleanup-panel { margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; }
+    #post-panel, #cleanup-panel, #admin-panel {
+      margin-top: 12px; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px;
+    }
     textarea { width: 100%; min-height: 60px; font-size: 14px; }
     button { padding: 10px 16px; margin: 5px; background-color: #2e7d32; color: white; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
     button:hover { background-color: #1b5e20; }
+    .danger { background:#c62828; }
+    .danger:hover { background:#8e0000; }
+    .warn   { background:#ef6c00; }
+    .warn:hover { background:#b24a00; }
     #status { color:#666; margin-left:6px; font-size: 0.9em; }
     .small { font-size: 12px; color:#777; }
     .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 
-    /* カラー選択のラジオボタン（見た目重視） */
     .color-swatch { display:inline-flex; align-items:center; gap:6px; margin-right:10px; cursor:pointer; }
     .swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #bbb; display:inline-block; }
-    .danger { background:#c62828; }
-    .danger:hover { background:#8e0000; }
 
-    /* 小さな注意テキスト */
     .hint { color:#555; font-size: 12px; }
+    .hidden { display:none; }
   </style>
 </head>
 <body>
@@ -34,10 +36,9 @@
 <h1>ShiomiXマップ</h1>
 <div id="map"></div>
 
-<!-- コメント投稿 -->
+<!-- 投稿パネル -->
 <div id="post-panel">
   <p>現在地（または地図中心）を使ってコメントを投稿します。</p>
-
   <textarea id="comment" placeholder="例：混雑少なめ／イベント開始まで10分"></textarea>
 
   <!-- 色選択（枠なし・淡色） -->
@@ -75,7 +76,7 @@
       <option value="12">12時間</option>
       <option value="24">24時間</option>
     </select>
-    <span class="hint">※現在時刻＋選択時間で表示終了</span>
+    <span class="hint">※現在時刻＋選択時間で表示終了を設定します</span>
   </div>
 
   <div class="row">
@@ -85,13 +86,9 @@
   <p class="small">※位置が取得できない場合は地図中心座標で投稿します。</p>
 </div>
 
-<!-- 表示整理／一括削除 -->
+<!-- 表示整理（非表示フィルタ＋本人の一括削除） -->
 <div id="cleanup-panel">
-  <div class="row">
-    <strong>表示整理／削除</strong>
-  </div>
-
-  <!-- 非表示フィルタ -->
+  <div class="row"><strong>表示整理／削除</strong></div>
   <div class="row">
     <label><input type="checkbox" id="hideExpired" checked> 期限切れを隠す</label>
     <span class="small">（endAt を過ぎた投稿は非表示）</span>
@@ -106,15 +103,29 @@
     <button id="applyHide" style="margin-left:8px;">非表示を適用</button>
     <button id="clearHide">非表示解除</button>
   </div>
-
-  <!-- 一括削除（安全に本人のみ） -->
   <div class="row">
     <button id="bulkDeleteMine" class="danger">表示範囲の自分の投稿を一括削除</button>
   </div>
-  <p class="small">※一括削除はサーバに削除を記録します（復元不可）。非表示はクライアントだけの視覚的整理です。</p>
 </div>
 
-<!-- 正しい LIFF SDK 読み込み -->
+<!-- 管理者パネル（adminCheckで表示制御） -->
+<div id="admin-panel" class="hidden">
+  <div class="row"><strong>管理者操作</strong></div>
+  <div class="row">
+    <button id="bulkDeleteAllVisible" class="danger">表示範囲の投稿を全削除（所有者問わず）</button>
+    <span class="small">※ deletedAt を設定（ソフト削除）</span>
+  </div>
+  <div class="row">
+    <button id="deleteAllSoft" class="warn">全件ソフト削除（過去分含む）</button>
+    <span class="small">※ シート上は残り、GETで非表示になります</span>
+  </div>
+  <div class="row">
+    <button id="purgeAllPhysical" class="danger">全件物理削除（過去分含む・復元不可）</button>
+    <span class="small">※ ヘッダ以外の行を完全削除します</span>
+  </div>
+</div>
+
+<!-- LIFF SDK -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
 <script>
@@ -127,9 +138,9 @@ const CONFIG = {
 
 let map;
 const markersById = new Map(); // id -> marker
-const postsById   = new Map(); // id -> post（再描画やフィルタに使用）
+const postsById   = new Map(); // id -> post（再描画・フィルタ・削除対象判定に利用）
 
-// 吹き出し色（枠なし・淡色）
+// 淡色（枠なし）
 const BUBBLE_COLORS = {
   pink:   '#ffd1dc',
   green:  '#d7f5d1',
@@ -138,23 +149,44 @@ const BUBBLE_COLORS = {
   gray:   '#e6e6e6'
 };
 
-// HTMLエスケープ
 const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
 
-// ---- LIFF初期化 ----
+// ---- LIFF 初期化＆管理者判定 ----
+let currentUserId = 'guest';
 let liffReady = (async function(){
   try {
     await liff.init({ liffId: CONFIG.LIFF_ID });
     if (!liff.isLoggedIn()) liff.login();
+    const profile = await liff.getProfile();
+    if (profile && profile.userId) currentUserId = profile.userId;
+    await checkAdminAndToggleUI(currentUserId); // 管理者判定
   } catch (e) {
-    console.warn('LIFF init error:', e);
+    console.warn('LIFF init/profile error:', e);
+    // 管理者UIは非表示のまま
   }
 })();
 async function ensureLiff(){ try { await liffReady; } catch(e) {} }
 
-function setStatus(msg){ document.getElementById('status').textContent = msg || ''; }
+async function checkAdminAndToggleUI(userId){
+  try {
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ action: 'adminCheck', userId })
+    });
+    const json = await res.json();
+    if (json && json.ok && json.isAdmin) {
+      document.getElementById('admin-panel').classList.remove('hidden');
+    } else {
+      document.getElementById('admin-panel').classList.add('hidden');
+    }
+  } catch(e) {
+    console.warn('adminCheck failed:', e);
+  }
+}
 
-// 現在地取得
+// ---- 位置取得 ----
 async function getCurrentLatLng(){
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('no geolocation'));
@@ -166,7 +198,7 @@ async function getCurrentLatLng(){
   });
 }
 
-// ====== 地図初期化（起動時に現在地センタリング＋青点） ======
+// ---- 地図初期化（現在地センタリング＋青ドット） ----
 async function initMap() {
   const fallback = { lat: 35.659466436461635, lng: 139.8171347921082 }; // 潮見高架下
   map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center: fallback });
@@ -183,38 +215,29 @@ async function initMap() {
       },
       title: '現在地'
     });
-  } catch(e) {
-    console.warn('current position not available:', e);
-  }
+  } catch(e) { console.warn('current position not available:', e); }
 
   await loadPosts();
-
-  // ★ ズーム連動（遠景=1行／近景=折返し）
-  map.addListener('zoom_changed', redrawIconsForZoom);
+  map.addListener('zoom_changed', redrawIconsForZoom); // ズーム連動
 }
-// Google Maps の callback から確実に見えるよう公開
 window.initMap = initMap;
 
-// ---- 投稿一覧読み込み（GET） ----
+// ---- 取得（GET） ----
 async function loadPosts(){
   setStatus('読み込み中…');
   try {
     const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?ttlHours=${CONFIG.TTL_HOURS_TO_LOAD}`);
     const raw = await res.text();
-    let json;
-    try { json = JSON.parse(raw); } catch(e){ throw new Error('JSON parse error: '+e+' / raw='+raw); }
+    const json = JSON.parse(raw);
     if (!json.ok) throw new Error(json.error || 'failed');
 
-    // 既存マーカーをクリア
+    // クリア
     for (const m of markersById.values()) m.setMap(null);
     markersById.clear();
     postsById.clear();
 
-    // 返却データをそのまま描画＆保持
-    json.data.forEach(p => {
-      postsById.set(p.id, p);
-      addMarker(p);
-    });
+    // 描画＆保持（サーバ側で期限切れは非返却だが、そのまま受け取る）
+    json.data.forEach(p => { postsById.set(p.id, p); addMarker(p); });
     setStatus(`読み込み完了（${json.data.length}件）`);
   } catch (e) {
     console.error('loadPosts error:', e);
@@ -222,125 +245,77 @@ async function loadPosts(){
   }
 }
 
-// ====== 折返しロジック・ズームモード ======
-function ellipsis(text, maxChars) {
-  const t = text || '';
-  return t.length <= maxChars ? t : (t.slice(0, maxChars - 1) + '…');
-}
+// ---- 折返しロジック・ズームモード ----
+function ellipsis(text, maxChars) { const t = text || ''; return t.length <= maxChars ? t : (t.slice(0, maxChars - 1) + '…'); }
 function measureLines(text, maxCharsPerLine = 14){
   const words = (text || '').split(/\s+/);
-  const lines = [];
-  let line = '';
+  const lines = []; let line = '';
   for (const w of words){
     if ((line + ' ' + w).trim().length > maxCharsPerLine){
       if (line) lines.push(line);
       if (w.length > maxCharsPerLine){
-        let start = 0;
-        while (start < w.length){
-          lines.push(w.slice(start, start + maxCharsPerLine));
-          start += maxCharsPerLine;
-        }
+        let s = 0;
+        while (s < w.length){ lines.push(w.slice(s, s + maxCharsPerLine)); s += maxCharsPerLine; }
         line = '';
-      } else {
-        line = w;
-      }
-    } else {
-      line = (line ? line + ' ' : '') + w;
-    }
+      } else { line = w; }
+    } else { line = (line ? line + ' ' : '') + w; }
   }
   if (line) lines.push(line);
   return lines;
 }
-// ズームに応じたモード（好みに応じて閾値調整可）
-function getWrapModeByZoom(zoom) {
-  return (zoom <= 16) ? 'single' : 'multi'; // 16以下：1行省略／17以上：折返し
-}
+function getWrapModeByZoom(zoom){ return (zoom <= 16) ? 'single' : 'multi'; }
 
-// ====== モード対応の吹き出しSVG生成（点→右側、枠なし淡色） ======
-function makeSpeechBubbleSVG(comment, colorKey, mode /* 'single' | 'multi' */){
+// ---- 吹き出しSVG生成（点→右側、枠なし淡色） ----
+function makeSpeechBubbleSVG(comment, colorKey, mode){
   const bubbleColor = BUBBLE_COLORS[colorKey] || BUBBLE_COLORS.pink;
   const textRaw = esc(comment || '');
+  const lines = (mode === 'single') ? [ellipsis(textRaw, 20)] : measureLines(textRaw, 14);
 
-  // モードに応じてテキスト行を構成
-  let lines;
-  if (mode === 'single') {
-    const single = ellipsis(textRaw, 20); // 遠景は短め
-    lines = [single];
-  } else {
-    lines = measureLines(textRaw, 14);
-  }
-
-  const lineHeight = 18;
-  const paddingX = 10;
-  const paddingY = 10;
-  const dotR = 6;
-  const radius = 12;
+  const lineHeight = 18, paddingX = 10, paddingY = 10, dotR = 6, radius = 12;
   const shadowColor = 'rgba(0,0,0,0.18)';
-
   const longest = Math.max(...lines.map(s => Math.max(16, s.length)));
-  const charW   = (mode === 'single') ? 7.2 : 7; // ほんの少し広め
+  const charW = (mode === 'single') ? 7.2 : 7;
   const textWidth = Math.max(16, longest) * charW;
   const bubbleW = Math.max(60, textWidth + paddingX * 2);
   const bubbleH = lines.length * lineHeight + paddingY * 2;
 
-  // 左端合わせ（点→右側に吹き出し）
-  const leftPad = dotR;
-  const bubbleX = leftPad;
-  const bubbleY = 0;
-  const dotCX   = bubbleX;
-  const dotCY   = bubbleY + bubbleH / 2;
-
-  const totalW = leftPad + bubbleW;
-  const totalH = bubbleH;
+  const leftPad = dotR, bubbleX = leftPad, bubbleY = 0;
+  const dotCX = bubbleX, dotCY = bubbleY + bubbleH / 2;
+  const totalW = leftPad + bubbleW, totalH = bubbleH;
 
   const svg =
 `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
-  <defs>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="${shadowColor}" flood-opacity="1"/>
-    </filter>
-  </defs>
-  <g filter="url(#shadow)">
-    <rect x="${bubbleX}" y="${bubbleY}" rx="${radius}" ry="${radius}" width="${bubbleW}" height="${bubbleH}" fill="${bubbleColor}" />
-  </g>
+  <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="${shadowColor}" flood-opacity="1"/>
+  </filter></defs>
+  <g filter="url(#shadow)"><rect x="${bubbleX}" y="${bubbleY}" rx="${radius}" ry="${radius}" width="${bubbleW}" height="${bubbleH}" fill="${bubbleColor}"/></g>
   <circle cx="${dotCX}" cy="${dotCY}" r="${dotR}" fill="#333333" />
   <g font-family="Segoe UI, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif" font-size="14" fill="#333333">
-    ${lines.map((ln, i) => {
-      const tx = bubbleX + paddingX;
-      const ty = paddingY + (i+1) * lineHeight - 4;
-      return `<text x="${tx}" y="${ty}">${ln}</text>`;
-    }).join('\n')}
+    ${lines.map((ln, i) => `<text x="${bubbleX + paddingX}" y="${paddingY + (i+1)*lineHeight - 4}">${ln}</text>`).join('\n')}
   </g>
 </svg>`;
-
   const svg64 = btoa(unescape(encodeURIComponent(svg)));
-  const url = `data:image/svg+xml;base64,${svg64}`;
-  return { url, totalW, totalH, anchorX: dotCX, anchorY: dotCY };
+  return { url:`data:image/svg+xml;base64,${svg64}`, totalW, totalH, anchorX:dotCX, anchorY:dotCY };
 }
 
-// ====== マーカー追加（モード適用） ======
+// ---- マーカー追加（モード適用／個別削除ボタン） ----
 function addMarker(p){
   const position = { lat: p.lat, lng: p.lng };
   const mode = getWrapModeByZoom(map.getZoom() || 18);
   const { url, totalW, totalH, anchorX, anchorY } = makeSpeechBubbleSVG(p.comment || '', p.color || 'pink', mode);
 
   const marker = new google.maps.Marker({
-    position,
-    map,
+    position, map,
     icon: { url, scaledSize: new google.maps.Size(totalW, totalH), anchor: new google.maps.Point(anchorX, anchorY) }
   });
 
-  // 投稿者本人なら削除ボタン表示（個別削除）
-  const canDelete = (p.currentUserId && p.userId && p.currentUserId === p.userId);
+  const canDelete = (currentUserId && p.userId && currentUserId === p.userId);
   const html = `
     <div>
       <div><b>${esc(p.comment || '')}</b></div>
       ${p.endAt ? `<div class="small">表示終了：${new Date(p.endAt).toLocaleString()}</div>` : ''}
-      ${canDelete ? `<div style="margin-top:6px;">
-        <button class="danger" id="delbtn-${p.id}">このコメントを削除</button>
-      </div>` : ''}
+      ${canDelete ? `<div style="margin-top:6px;"><button class="danger" id="delbtn-${p.id}">このコメントを削除</button></div>` : ''}
     </div>`;
-
   const info = new google.maps.InfoWindow({ content: html });
   marker.addListener('click', () => {
     info.open({ anchor: marker, map });
@@ -352,13 +327,10 @@ function addMarker(p){
     }
   });
 
-  if (p.id) {
-    markersById.set(p.id, marker);
-    postsById.set(p.id, p);
-  }
+  if (p.id) { markersById.set(p.id, marker); postsById.set(p.id, p); }
 }
 
-// ====== ズーム変更で全アイコン再描画（軽量スロットリング） ======
+// ---- ズーム連動再描画（スロットリング） ----
 let _zoomRedrawTimer = null;
 function redrawIconsForZoom(){
   if (_zoomRedrawTimer) return;
@@ -366,27 +338,22 @@ function redrawIconsForZoom(){
     _zoomRedrawTimer = null;
     const mode = getWrapModeByZoom(map.getZoom() || 18);
     for (const [id, post] of postsById.entries()){
-      const marker = markersById.get(id);
-      if (!marker) continue;
+      const mk = markersById.get(id); if (!mk) continue;
       const { url, totalW, totalH, anchorX, anchorY } = makeSpeechBubbleSVG(post.comment || '', post.color || 'pink', mode);
-      marker.setIcon({
-        url,
-        scaledSize: new google.maps.Size(totalW, totalH),
-        anchor: new google.maps.Point(anchorX, anchorY)
-      });
+      mk.setIcon({ url, scaledSize: new google.maps.Size(totalW, totalH), anchor: new google.maps.Point(anchorX, anchorY) });
     }
-  }, 80); // 80ms程度で十分
+  }, 80);
 }
 
-// ====== 投稿 ======
+// ---- 投稿 ----
 document.getElementById('postBtn').addEventListener('click', onPost);
-
 async function onPost(){
   await ensureLiff();
 
   const commentEl = document.getElementById('comment');
   const durationEl = document.getElementById('duration');
   const colorKey = (document.querySelector('input[name="bubbleColor"]:checked')?.value) || 'pink';
+
   const comment = commentEl.value.trim();
   if (!comment) return alert('コメントを入力してください');
 
@@ -396,69 +363,44 @@ async function onPost(){
 
   setStatus('投稿中…');
 
-  let userId = 'guest';
-  try {
-    const profile = await liff.getProfile();
-    if (profile && profile.userId) userId = profile.userId;
-  } catch(e) { console.warn('getProfile error:', e); }
-
   let pos;
   try { pos = await getCurrentLatLng(); } catch(e) { pos = map.getCenter().toJSON(); }
 
   const payload = {
     action: 'create',
-    userId, lat: pos.lat, lng: pos.lng,
+    userId: currentUserId, lat: pos.lat, lng: pos.lng,
     comment, color: colorKey,
-    startAt: now.toISOString(),
-    endAt: endAt.toISOString()
+    startAt: now.toISOString(), endAt: endAt.toISOString()
   };
 
   try {
-    let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    let raw = await res.text();
-    let json;
-    try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const json = await res.json();
     if (!json.ok) throw new Error(json.error || '投稿失敗');
 
-    // 即時反映
     addMarker({
-      id: json.id,
-      timestamp: now.toISOString(),
+      id: json.id, timestamp: now.toISOString(),
       lat: pos.lat, lng: pos.lng, comment,
-      color: colorKey,
-      endAt: endAt.toISOString(),
-      userId, currentUserId: userId
+      color: colorKey, endAt: endAt.toISOString(),
+      userId: currentUserId
     });
     commentEl.value = '';
     setStatus('投稿しました');
   } catch (e1) {
-    console.warn('POST (json) failed, fallback to text/plain:', e1);
+    console.warn('POST json failed, fallback to text/plain:', e1);
     try {
-      let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
-      });
-      let raw = await res.text();
-      let json;
-      try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(payload) });
+      const json = await res.json();
       if (!json.ok) throw new Error(json.error || '投稿失敗');
-
       addMarker({
-        id: json.id,
-        timestamp: now.toISOString(),
+        id: json.id, timestamp: now.toISOString(),
         lat: pos.lat, lng: pos.lng, comment,
-        color: colorKey,
-        endAt: endAt.toISOString(),
-        userId, currentUserId: userId
+        color: colorKey, endAt: endAt.toISOString(),
+        userId: currentUserId
       });
       commentEl.value = '';
       setStatus('投稿しました');
-    } catch (e2) {
+    } catch(e2) {
       console.error('POST failed:', e2);
       alert('投稿に失敗しました。時間をおいて再度お試しください。');
       setStatus('投稿エラー');
@@ -466,48 +408,24 @@ async function onPost(){
   }
 }
 
-// ====== 個別削除（本人のみ） ======
+// ---- 個別削除（本人 or 管理者） ----
 async function deletePost(id){
   await ensureLiff();
-  let currentUserId = 'guest';
-  try {
-    const profile = await liff.getProfile();
-    if (profile && profile.userId) currentUserId = profile.userId;
-  } catch(e) {}
-
   setStatus('削除中…');
   const payload = { action: 'delete', id, userId: currentUserId };
 
   try {
-    let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    let raw = await res.text();
-    let json;
-    try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
-    if (!json.ok) throw new Error(json.error || '削除失敗');
-
-    const mk = markersById.get(id);
-    if (mk) { mk.setMap(null); markersById.delete(id); }
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const json = await res.json(); if (!json.ok) throw new Error(json.error || '削除失敗');
+    const mk = markersById.get(id); if (mk) { mk.setMap(null); markersById.delete(id); }
     postsById.delete(id);
     setStatus('削除しました');
   } catch(e1){
     console.warn('DELETE json failed, fallback to text/plain:', e1);
     try {
-      let res = await fetch(CONFIG.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
-      });
-      let raw = await res.text();
-      let json;
-      try { json = JSON.parse(raw); } catch(e) { throw new Error('JSON parse error: '+e+' / raw='+raw); }
-      if (!json.ok) throw new Error(json.error || '削除失敗');
-
-      const mk = markersById.get(id);
-      if (mk) { mk.setMap(null); markersById.delete(id); }
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(payload) });
+      const json = await res.json(); if (!json.ok) throw new Error(json.error || '削除失敗');
+      const mk = markersById.get(id); if (mk) { mk.setMap(null); markersById.delete(id); }
       postsById.delete(id);
       setStatus('削除しました');
     } catch(e2){
@@ -518,34 +436,28 @@ async function deletePost(id){
   }
 }
 
-// ====== 非表示フィルタ（期限・色） ======
+// ---- 非表示フィルタ（期限・色） ----
 document.getElementById('applyHide').addEventListener('click', applyHideFilters);
 document.getElementById('clearHide').addEventListener('click', clearHideFilters);
-
 function applyHideFilters(){
   const hideExpired = document.getElementById('hideExpired').checked;
   const hideColors = Array.from(document.querySelectorAll('.hideColor:checked')).map(el => el.value);
   const now = Date.now();
-
   for (const [id, post] of postsById.entries()){
-    const marker = markersById.get(id);
-    if (!marker) continue;
-    const expired = post.endAt ? new Date(post.endAt).getTime() < now : false;
-    const hideByExpired = hideExpired && expired;
-    const hideByColor = hideColors.includes(post.color);
-    marker.setVisible(!(hideByExpired || hideByColor));
+    const mk = markersById.get(id); if (!mk) continue;
+    const expired = post.endAt ? (new Date(post.endAt).getTime() < now) : false;
+    mk.setVisible(!( (hideExpired && expired) || hideColors.includes(post.color) ));
   }
 }
 function clearHideFilters(){
-  for (const marker of markersById.values()) marker.setVisible(true);
+  for (const mk of markersById.values()) mk.setVisible(true);
   document.getElementById('hideExpired').checked = true;
   document.querySelectorAll('.hideColor').forEach(el => el.checked = false);
 }
 
-// ====== 表示範囲（viewport）に見えている投稿ID抽出 ======
+// ---- 表示範囲（viewport）に見えている投稿ID抽出 ----
 function getVisiblePostIdsInViewport(){
-  const bounds = map.getBounds();
-  if (!bounds) return [];
+  const bounds = map.getBounds(); if (!bounds) return [];
   const ids = [];
   for (const [id, post] of postsById.entries()){
     const pos = new google.maps.LatLng(post.lat, post.lng);
@@ -555,15 +467,9 @@ function getVisiblePostIdsInViewport(){
   return ids;
 }
 
-// ====== 一括削除（表示範囲の自分の投稿） ======
+// ---- 一括削除（表示範囲の自分の投稿） ----
 document.getElementById('bulkDeleteMine').addEventListener('click', async () => {
   await ensureLiff();
-  let currentUserId = 'guest';
-  try {
-    const profile = await liff.getProfile();
-    if (profile && profile.userId) currentUserId = profile.userId;
-  } catch(e){}
-
   const idsInView = getVisiblePostIdsInViewport()
     .filter(id => postsById.get(id)?.userId === currentUserId);
 
@@ -573,33 +479,68 @@ document.getElementById('bulkDeleteMine').addEventListener('click', async () => 
   await bulkDelete(idsInView, currentUserId);
 });
 
-async function bulkDelete(ids, currentUserId){
-  setStatus('一括削除中…');
-  const payload = { action: 'bulkDelete', ids, userId: currentUserId };
-  try {
-    let res  = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    let json = JSON.parse(await res.text());
-    if (!json.ok) throw new Error(json.error || '一括削除失敗');
+// ---- 管理者：表示範囲の全投稿を一括削除（所有者問わず） ----
+document.getElementById('bulkDeleteAllVisible').addEventListener('click', async () => {
+  await ensureLiff();
+  const idsInView = getVisiblePostIdsInViewport();
+  if (idsInView.length === 0) return alert('削除対象がありません（表示範囲に投稿がありません）。');
+  if (!confirm(`表示範囲の投稿 ${idsInView.length} 件をすべて削除します（管理者）。よろしいですか？`)) return;
+  await bulkDelete(idsInView, currentUserId); // 管理者は所有者問わずサーバで許可
+});
 
-    // 地図／メモリから除去
-    ids.forEach(id => {
-      const mk = markersById.get(id);
-      if (mk) { mk.setMap(null); markersById.delete(id); }
-      postsById.delete(id);
-    });
+// ---- 管理者：全件ソフト削除（過去分含む） ----
+document.getElementById('deleteAllSoft').addEventListener('click', async () => {
+  await ensureLiff();
+  if (!confirm('全件ソフト削除（過去分含む）を実行します。よろしいですか？')) return;
+  setStatus('全件ソフト削除中…');
+  try {
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'deleteAll', userId: currentUserId }) });
+    const json = await res.json(); if (!json.ok) throw new Error(json.error || '全件ソフト削除失敗');
+    await loadPosts(); setStatus('全件ソフト削除しました');
+  } catch(e1){
+    console.warn('deleteAll json failed, fallback:', e1);
+    try {
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({ action:'deleteAll', userId: currentUserId }) });
+      const json = await res.json(); if (!json.ok) throw new Error(json.error || '全件ソフト削除失敗');
+      await loadPosts(); setStatus('全件ソフト削除しました');
+    } catch(e2){ console.error(e2); alert('全件ソフト削除に失敗しました'); setStatus('削除エラー'); }
+  }
+});
+
+// ---- 管理者：全件物理削除（復元不可） ----
+document.getElementById('purgeAllPhysical').addEventListener('click', async () => {
+  await ensureLiff();
+  if (!confirm('【復元不可】全件物理削除を実行します。よろしいですか？')) return;
+  setStatus('全件物理削除中…');
+  try {
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'purgeAll', userId: currentUserId }) });
+    const json = await res.json(); if (!json.ok) throw new Error(json.error || '全件物理削除失敗');
+    await loadPosts(); setStatus('全件物理削除しました');
+  } catch(e1){
+    console.warn('purgeAll json failed, fallback:', e1);
+    try {
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({ action:'purgeAll', userId: currentUserId }) });
+      const json = await res.json(); if (!json.ok) throw new Error(json.error || '全件物理削除失敗');
+      await loadPosts(); setStatus('全件物理削除しました');
+    } catch(e2){ console.error(e2); alert('全件物理削除に失敗しました'); setStatus('削除エラー'); }
+  }
+});
+
+// ---- サーバ側 bulkDelete を呼び出す（本人 or 管理者） ----
+async function bulkDelete(ids, userId){
+  setStatus('一括削除中…');
+  const payload = { action:'bulkDelete', ids, userId };
+  try {
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const json = await res.json(); if (!json.ok) throw new Error(json.error || '一括削除失敗');
+    ids.forEach(id => { const mk = markersById.get(id); if (mk) { mk.setMap(null); markersById.delete(id); } postsById.delete(id); });
     setStatus(`削除しました（${ids.length}件）`);
   } catch(e1){
-    console.warn('bulk delete failed, fallback to text/plain:', e1);
+    console.warn('bulkDelete json failed, fallback:', e1);
     try {
-      let res  = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(payload) });
-      let json = JSON.parse(await res.text());
-      if (!json.ok) throw new Error(json.error || '一括削除失敗');
-
-      ids.forEach(id => {
-        const mk = markersById.get(id);
-        if (mk) { mk.setMap(null); markersById.delete(id); }
-        postsById.delete(id);
-      });
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(payload) });
+      const json = await res.json(); if (!json.ok) throw new Error(json.error || '一括削除失敗');
+      ids.forEach(id => { const mk = markersById.get(id); if (mk) { mk.setMap(null); markersById.delete(id); } postsById.delete(id); });
       setStatus(`削除しました（${ids.length}件）`);
     } catch(e2){
       console.error('bulk delete failed:', e2);
@@ -610,7 +551,7 @@ async function bulkDelete(ids, currentUserId){
 }
 </script>
 
-<!-- 正しい Google Maps API 読み込み（async+defer+callback） -->
+<!-- Google Maps API -->
 <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA4oFb8iNj2R_2lzlvpSZgOZiets5j2psg&callback=initMap"></script>
 </body>
 </html>
